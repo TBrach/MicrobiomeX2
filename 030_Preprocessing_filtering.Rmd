@@ -1,0 +1,114 @@
+# Preprocessing and filtering
+
+- **filtering strategy**:
+    - I filter on prevalence (keeping taxa with prevalence > `r prevalence`) and taxa_sums() (keeping taxa whose taxa sums/total counts over all samples are above the `r taxa_sums_quantile` quantile)
+        - prevalence filter: remove taxa that are only in very few samples
+        - taxa_sums_quantile filter: keep very abundant taxa even if they are only present in a few samples.
+    - NG:
+        - because of the taxa_sums_quantile filter, I first do a DeSEQ-like total counts (sample size/library size) adjustment on the samples *using the size factors that have been calculated above on all taxa before tax_glom*. 
+        - this sample size adjustment does not affect prevalence nor relative abundances. So only analyses using ps_tca are affected, not analyses using ps_filt or ps_filt_ra (relative abundance).
+        - *to visualise the size factors, bar plots of the counts at phylum level are shown*
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# - filtering  -
+# NB: SFs were already calculated in exploratory analysis before tax_glom!
+library_size_adjust_list <- simply_adjust_LS(ps, SFs = SFs) 
+ps_tca <- library_size_adjust_list[[1]] # tca: total counts adjusted
+
+ps_tca_filt <- phyloseq::filter_taxa(ps_tca, function(x){
+        (sum(x > min_obs) > (prevalence/100)*length(x)) || 
+                (sum(x) > quantile(taxa_sums(ps_tca), probs = taxa_sums_quantile/100))
+        }, prune = TRUE)
+
+ps_filt <- phyloseq::prune_taxa(taxa_names(ps_tca_filt), ps) # you need ps_filt for DESeq2Apply_physeq
+
+# --
+
+# - Generate a visual overview of the filtering step -
+filterList <- visualize_filtering(physeq = ps_tca, prevalence = prevalence, taxa_sums_quantile = taxa_sums_quantile)
+# --
+```
+
+
+
+- The filtering (SFs) was done using all samples, because it is better to determine size factors and calculate prevalence on all samples.
+- Now the phyloseq objects are pruned to only contain the samples that are part of group_var_levels
+- Then the phyloseq objects are cleaned again for taxa that are not present in a single of the remaining samples
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# - prune all physeq objects so they only contain samples that are part of group_var_levels -
+keepSamples <- sample_names(ps)[sample_data(ps)[[group_var]] %in% group_var_levels]
+
+physeq_list <- list(ps = ps, ps_filt = ps_filt, ps_tca = ps_tca, ps_tca_filt =  ps_tca_filt)
+
+for (i in 1:length(physeq_list)){
+        assign(names(physeq_list)[i], prune_samples(samples = keepSamples, physeq_list[[i]]))
+}
+
+rm(physeq_list, keepSamples)
+# --
+
+# - remove taxa that are now not presenti in a single sample -
+keepTaxa <- taxa_names(ps)[taxa_sums(ps) != 0]
+
+physeq_list <- list(ps = ps, ps_filt = ps_filt, ps_tca = ps_tca, ps_tca_filt =  ps_tca_filt)
+
+for (i in 1:length(physeq_list)){
+         assign(names(physeq_list)[i], prune_taxa(taxa = keepTaxa, physeq_list[[i]]))
+}
+
+rm(physeq_list, keepTaxa)
+# --
+
+ps_filt_ra <- phyloseq::transform_sample_counts(ps_filt, function(x){x/sum(x)}) 
+
+
+# - generate barplot representations of counts before and after filtering - 
+bar_plot_ps_vs_ps_tca <- plot_sample_bars_compare(physeq = ps, physeq2 = ps_tca, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, fill = "Phylum", color_sample_names = TRUE)
+# --
+
+SFs <- SFs[names(SFs) %in% sample_names(ps)]
+
+# - Plots on the question: Were the size factors different between the groups -
+SFList <- plot_sizeFactors(physeq = ps, SFs = SFs, group_var = group_var, color_levels = color_levels, shape = shape, test = "t.test", p_adjust_method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
+# --
+```
+
+- taxa within the shaded area were removed:
+
+```{r, fig.width = 8, fig.height = 6, warning = FALSE, message = FALSE, echo = FALSE}
+filterList[[1]]
+```
+
+```{r, fig.width = 10, fig.height = 8, warning = FALSE, message = FALSE, echo = FALSE}
+filterList[[2]]
+```
+
+
+- **`r ntaxa(ps_filt)` out of `r ntaxa(ps)` taxa survived the filter (`r round(100*ntaxa(ps_filt)/ntaxa(ps), 1)` %)**
+- **`r sum(otu_table(ps_tca_filt))` out of `r sum(otu_table(ps_tca))` counts survived the filter (`r round(100*sum(otu_table(ps_tca_filt))/sum(otu_table(ps_tca)), 1)` %)** (based on ps_tca vs ps_tca_filt, not ps vs ps_filt)
+
+- the following plot shows how the total counts (sample sizes) changed by the size factor adjustment
+
+```{r, fig.width = 14, fig.height = 14, warning = FALSE, message = FALSE, echo = FALSE}
+bar_plot_ps_vs_ps_tca
+```
+
+- the following plots show the distribution of the size factors between the groups.
+
+```{r, fig.width = 14, fig.height = 6, warning = FALSE, message = FALSE, echo = FALSE}
+grid.arrange(SFList[[2]], SFList[[3]], ncol = 2)
+```
+
+
+- **Write your conclusion here:** *e.g.: size factors look reasonable when they are around 1. If some size factors are very small or low, something might be weird with those samples. Remember size factor adjustment affects DeSeq analysis, but not analyses on relative abundance*
+
+
+- Define here the Phyla colors
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+Phyla <- check_phyla_distribution(ps_filt)
+Phyla$Phylum <- factor(Phyla$Phylum, levels = unique(Phyla$Phylum), ordered = T)
+phylum_colors <- assign_default_colors(Phyla, "Phylum")
+```

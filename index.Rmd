@@ -1,0 +1,371 @@
+--- 
+title: "Example analysis of a phyloseq object"
+author: "Thorsten Brach"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+# -- Define the output option, i.e. whether you want to build a html document, a pdf, or a gitbook
+output: bookdown::html_document2
+# output: bookdown::gitbook
+# output: bookdown::pdf_book
+# --
+documentclass: book
+classoption: a4paper
+#bibliography: [book.bib, packages.bib]
+#biblio-style: apalike
+link-citations: yes
+# description: "MicrobDiab Analysis"
+#output: bookdown::pdf_book
+#  fig_width: 7
+# output: html_document
+---
+
+
+
+
+# Introduction and User input 
+
+## How the document works
+
+The document illustrates a streamlined analysis of microbiome data starting with a phyloseq object. 
+The analysis includes exploratory analysis, alpha-diversity analysis, beta-diversity (ordination) analysis, and comparison of phyla ratios.
+
+To perform the analysis with your own data, or to recapitulate this example analysis on your own computer:
+
+- Where to start?: 
+    - The pipeline makes use of "R Projects" and the "bookdown package". 
+        - Start a new project in R Studio using this folder as "from existing directory". Then open the index.Rmd file in R studio.
+        - When you later build the final document with bookdown, all Rmd files (the Chapters) in the folder are considered in alphabetic order. For more info: <https://www.rstudio.com/resources/webinars/introducing-bookdown/>
+- What you need?:
+    - make sure that all packages under **Load packages (and color schemes)** are installed and up to date.
+    - you need a prepared phyloseq object, saved as **.rds** file on your computer (saveRDS command) (best in the project folder). Just like the one in Example_phyloseq_objects. Info: <https://joey711.github.io/phyloseq/import-data.html>
+- What then?
+    - Adjust the input parameters for the analysis under **Load phyloseq object and set input**. I hope most input is self-explanatory in particular with the annotation given in the section. In this section: all lines where user input is required or possible are marked with **NB: USER INPUT** and **NB: user input**, respectively
+       - NB: In the section: **Load phyloseq object and set input**, I intentionally put the input tests directly after the input is given. That way it takes longer to write the input. I did so, because I think it is a good idea to go once through the entire section for each analysis. It helps in understanding the input and discovering potential problems.
+- How to run it?
+    - When you are certain about the input, you build the document in Rstudio with bookdown. You do so under Build >> Build All. Or by using the Build tab >> Build Book. This will run the entire analysis and produce the output document.
+        - By default I use bookdown::html_document2, so an html file **_main.html (look at it in your browser)** is created.
+        - You can change the output to pdf or gitbook by setting the output: on top of the document to bookdown::pdf_book or bookdown::gitbook, respectively. However, wide tables that are wider than the page size are currently only fully visible in html.
+
+
+*NB: The project leading to this application has received funding from the European Union's Horizon 2020 research and innovation programme under the Marie Sklodowska-Curie grant agreement No 707300.*  
+
+## Load packages (and color schemes)
+
+<!-- Load required packages -->
+
+```{r, echo = FALSE, message=FALSE, include = FALSE}
+# - install packages -
+# NB: all packages have to be installed, usually via install.packages()
+# but some you need to install via bioconductor, e.g.:
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("phyloseq")
+# --
+
+# - load packages -
+library(phyloseq); # packageVersion("phyloseq")
+library(dada2); # packageVersion("dada2")
+library(vegan); # packageVersion("vegan")
+library(ggplot2); # packageVersion("ggplot2")
+library(dplyr); # packageVersion("dplyr")
+library(tidyr); # packageVersion("tidyr")
+library(gridExtra); # packageVersion("gridExtra")
+library(xtable); # packageVersion("xtable")
+library(RVAideMemoire); #packageVersion("RVAideMemoire")
+library(viridis); # packageVersion("viridis")
+library(scales); # packageVersion("scales") # for the oob = squish option in gradient plots
+library(ggthemes); # packageVersion("ggthemes")
+library(DESeq2); # packageVersion("DESeq2")
+library(ggpubr); # packageVersion("ggpubr")
+library(RColorBrewer)
+library(pheatmap)
+library(grid)
+
+
+# - packaged from Mani's analysis that I could add -
+# library(cowplot)
+# library(coin)
+# library(ade4)
+# library(ggrepel)
+# library(ggforce)
+# library(bookdown)
+# library(kableExtra)
+# library(RColorBrewer)
+# library(bindrcpp)
+# library(stringr)
+# library(pheatmap)
+# library(BiocParallel)
+# library(microbiomeX)
+# --
+
+# - define cbPalette and QuantColors15 schemes -
+# R color blind palette is used for group comparisons (unless more than 8 groups)
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") # ref: http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/
+# QuantColors15 is used for phyla comparisons as long as there are < 15 phyla, each color is easy to distinguish from the two colors surrounding it
+tol15rainbow=c("#114477", "#4477AA", "#77AADD", "#117755", "#44AA88", "#99CCBB", "#777711", "#AAAA44", "#DDDD77", "#771111", "#AA4444", "#DD7777", "#771144", "#AA4477", "#DD77AA") # ref: https://tradeblotter.wordpress.com/2013/02/28/the-paul-tol-21-color-salute/
+QuantColors15 <- tol15rainbow[c(1, 12, 4, 7, 13, 2, 11, 5, 8, 14, 3, 10, 6, 9, 15)]
+# --
+```
+
+
+
+## Load phyloseq object and set input
+
+<!-- all lines where user user input is required or possible are marked with NB: USER INPUT and NB: user input, respectively -->
+
+
+```{r, echo = FALSE, message=FALSE}
+# - source all functions -
+functionpath <- "./Functions"
+source(file.path(functionpath, "000_helper_functions.R"))
+source(file.path(functionpath, "010_explore_ps_functions.R"))
+source(file.path(functionpath, "020_preprocess_filtering_functions.R"))
+source(file.path(functionpath, "030_alpha_diversity_functions.R"))
+source(file.path(functionpath, "040_beta_diversity_functions.R"))
+source(file.path(functionpath, "050_diff_abundance_functions.R"))
+source(file.path(functionpath, "060_phylum_analysis_functions.R"))
+source(file.path(functionpath, "n_050_diff_abundance_functions.R"))
+
+# - load your phyloseq object - 
+# NB: USER INPUT
+name_phyloseq_rds <- "physeq_Men.rds"
+# NB: USER INPUT
+datapath <- "./Example_phyloseq_objects"
+
+# Test your input:
+if(! file.exists(file.path(datapath, name_phyloseq_rds))){
+        stop("The given path/file to your phyloseq object does not exist.")
+}
+
+ps <- readRDS(file.path(datapath, name_phyloseq_rds))
+# --
+
+# - Define the group variable for sample comparisons -
+# NB: USER INPUT
+group_var <- "Country" # MANDATORY: a variable in sample_data(ps) based on which samples will be compared
+
+# Test your input:
+if(! group_var %in% colnames(sample_data(ps))) {
+        stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
+}
+# --
+
+# - Define the two levels in your group_var that you want to compare -
+# NB: USER INPUT
+group_var_levels <- c("DK", "IN") # defines the order of the groups in all plots. If set to NULL:
+if (is.null(group_var_levels)) { 
+        group_var_levels <- unique(sample_data(ps)[[group_var]])
+}
+
+# Test your input:
+if (!all(group_var_levels %in% unique(sample_data(ps)[[group_var]]))) {
+        stop("Not all given group_var_levels are actually levels in group_var column.")
+}
+
+if (length(group_var_levels) != 2) {
+        stop("Sorry, for MicrobiomeX2 group_var_levels needs to consist of exactly 2 levels.")
+}
+
+# -- 
+
+# - Set the colors representing the groups in your group_var -
+# NB: USER INPUT
+color_levels <- c(cbPalette[2], cbPalette[4]) # choose your preferred colors for each group in your group_var. If set to NULL:
+
+if (is.null(color_levels)) { 
+                color_levels <- c(cbPalette[2], cbPalette[4])
+}
+
+# Test your input:
+if (length(color_levels) != length(group_var_levels)) {
+        stop("The number of colors in the given color_levels did not fit to group_var_levels.")
+}
+
+if (!all(areColors(color_levels))) {
+        stop("Stopped because not all entries in color_levels were valid R colors.")
+}
+
+names(color_levels) <- group_var_levels
+# -- 
+
+# - optional: use another variable in sample_data(ps) as shape in some of the plots -
+# NB: user input
+shape <- "Gender" 
+
+# Test your input:
+if (!is.null(shape)) {
+        if (! shape %in% colnames(sample_data(ps))) {
+                stop("The given shape is not a variable in the sample data of the loaded phyloseq object.")
+        }
+}
+# --
+
+# - Set the taxonomic_level for the analysis -
+# NB: You can choose all levels within colnames(tax_table(ps))
+# phyloseq::taxglom to that level will be used.
+# if you set taxonomic_level to NULL, all taxa will be analysed (i.e. strain/species/ASV level analysis)
+# NB user input
+taxonomic_level <- "Genus"
+# NB user input
+phylum_NA_removal <- "no" # if yes you remove all taxa for which Phylum = NA before the analyses
+
+# Test your input:
+if (!is.null(taxonomic_level) && !(taxonomic_level %in% colnames(tax_table(ps)))){
+        stop("You provided a taxonomic_level that is not present in the tax_table of the loaded phyloseq object.")
+}
+# --
+
+# - Filtering inputs -
+# NB: user input
+prevalence <- 0 # in percent, for prevalence filtering of taxa 
+# NB: user input
+min_obs <- 0L # in counts, a taxon will be considered present (for prevalence) if count > min_obs
+# NB: user input
+taxa_sums_quantile <- 100 # in percent, taxa whose taxa_sums are above this threshold will be kept even if they do not pass prevalence filter
+
+# Test filtering inputs and set invalid inputs to defaults
+if (!is.numeric(prevalence) || prevalence < 0 || prevalence > 100) {
+        prevalence <- 5
+}
+
+if (!is.numeric(min_obs)) {
+       min_obs <- 0L
+}
+
+if (!is.numeric(taxa_sums_quantile) || taxa_sums_quantile < 0 || taxa_sums_quantile > 100) {
+        taxa_sums_quantile <- 0
+}
+# --
+
+# - Alpha diversity and rarifaction inputs -
+# NB: user input
+alpha_div_measures <- c("Observed", "Shannon") # ?phyloseq::estimate_richness: may include c("Observed", "Chao1", "ACE", "Shannon", "Simpson", "InvSimpson", "Fisher")
+# NB: user input
+seed <- 1234 # for reproducibility of rarefaction curves
+# NB: user input
+step_size <- 200 # steps in sample_sums for rarefaction curves
+# NB: user input
+rare_level <- NULL # sample_sums/total_counts level to which rarefaction is perforemd, if NULL, min(sample_sums(ps)) is used!
+# NB: user input
+rare_max_total <- NULL # maximal sample_sums/total_counts value to which rarefaction curves are calculated, if NULL: quantile(sample_sums(ps), probs = .25) is used
+
+# Test alpha-diversity inputs and set invalid inputs to defaults
+if (! all(alpha_div_measures %in% c("Observed", "Chao1", "ACE", "Shannon", "Simpson", "InvSimpson", "Fisher"))) {
+        alpha_div_measures <- c("Observed", "Shannon")
+}
+
+if (!is.numeric(seed)) {
+        seed <- 1234
+}
+
+if (!is.numeric(step_size)) {
+        step_size <- 200
+}
+
+if (!is.numeric(rare_level)) {
+        rare_level <- NULL # will be changed to min(sample_sums(ps))
+}
+
+if (!is.numeric(rare_max_total)) {
+        rare_max_total <- NULL # quantile(sample_sums(ps), probs = .25)
+}
+# --
+
+# - beta diversity inputs -
+dist_methods <- c("jsd") # otions: see unlist(phyloseq::distanceMethodList)
+coord_cor <- FALSE # adjustment of the axis representation in ordination plots
+
+# Test beta diversity inputs and set invalid inputs to defaults
+if (! all(dist_methods %in% unlist(phyloseq::distanceMethodList))) {
+       dist_methods <- c("jsd")
+}
+
+if (! is.logical(coord_cor)){
+        coord_cor <- FALSE
+}
+# --
+```
+
+
+
+```{r, echo = FALSE, message=FALSE}
+# - record used R and package versions in a data frame -
+PackageVersions <- data.frame(R = version$version.string,
+                              phyloseq = packageVersion("phyloseq"),
+                              dada2 = packageVersion("dada2"),
+                              vegan = packageVersion("vegan"),
+                              ggplot2 = packageVersion("ggplot2"),
+                              dplyr = packageVersion("dplyr"),
+                              tidyr = packageVersion("tidyr"),
+                              gridExtra = packageVersion("gridExtra"),
+                              xtable = packageVersion("xtable"),
+                              viridis = packageVersion("viridis"),
+                              scales = packageVersion("scales"),
+                              ggthemes = packageVersion("ggthemes"),
+                              DESeq2 = packageVersion("DESeq2"),
+                              ggpubr = packageVersion("ggpubr"),
+                              RColorBrewer = packageVersion("RColorBrewer"),
+                              pheatmap = packageVersion("pheatmap"),
+                              grid = packageVersion("grid"))
+
+for (i in 1:ncol(PackageVersions)){
+        PackageVersions[,i] <- as.character(PackageVersions[,i])
+}
+
+PackageVersions_l <- tidyr::gather(PackageVersions, key = Package, value = Version) 
+
+PackageVersions_l[2:nrow(PackageVersions_l), ] <- dplyr::arrange(PackageVersions_l[2:nrow(PackageVersions_l), ], Package)
+# --
+
+# - record given input parameters in a data frame -
+Inputs_phyloseqAnalysis <- list(taxonomic_level = taxonomic_level,
+                                phylum_NA_removal = phylum_NA_removal,
+                                group_var = group_var,
+                                group_var_levels = group_var_levels,
+                                shape = shape,
+                                prevalence = prevalence,
+                                min_obs = min_obs,
+                                taxa_sums_quantile = taxa_sums_quantile,
+                                alpha_div_measures = alpha_div_measures,
+                                seed = seed,
+                                step_size = step_size,
+                                rare_level = rare_level,
+                                rare_max_total = rare_max_total,
+                                dist_methods = dist_methods,
+                                coord_cor = coord_cor)
+
+
+Inputs_phyloseqAnalysis <- data.frame(Argument = names(Inputs_phyloseqAnalysis),
+                                      Value = sapply(Inputs_phyloseqAnalysis, function(x){
+                                              if (is.null(x)){
+                                                      "NULL"
+                                              } else if (length(x) > 7) {
+                                                      "long entry"
+                                              } else if (length(x) > 1 && length(x) < 8){
+                                                      paste(x, collapse = "; ")
+                                              } else {
+                                                      as.character(x)
+                                              }
+                                      }
+                                      ))
+
+rownames(Inputs_phyloseqAnalysis) <- NULL
+# --
+```
+
+
+- the following package versions have been used:
+
+```{r, echo = FALSE, message = FALSE}
+knitr::kable(PackageVersions_l)
+```
+
+
+- the following inputs were given
+
+```{r, echo = FALSE, message = FALSE}
+knitr::kable(Inputs_phyloseqAnalysis)
+```
+
+
+
+

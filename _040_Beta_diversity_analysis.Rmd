@@ -1,0 +1,79 @@
+# Beta diversity analysis
+
+
+
+## Calculate distances, construct ordination plots, test for significance
+
+- NB: analysis is done on relative abundance here (you could use ps_tca_filt instead)
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE, include = FALSE}
+# - calculate the beta diversity distances -
+dist_list <- calc_beta_div_distances(ps_filt_ra, dist_methods) # produces objects of class "dist"
+# --
+
+# - gemerate boxplots always comparing the within to the between group distances -
+# NB: takes also time for many samples, so you might want to take it out if there are many
+dist_analysis_list <- compare_beta_div_distances_directly(dist_list = dist_list, physeq = ps_filt_ra, group_var = group_var, test = "t.test", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")),
+                               p.adjust.method = "BH", hide.ns = FALSE)
+
+# --
+
+
+# - add Permutational Multivariate Analysis of Variance Using Distance Matrix and vegan::adonis -
+adonis_list <- lapply(dist_list, function(dist_obj){
+        loop_vegan_adonis(dist_obj = dist_obj, group_fac = sample_data(ps_filt_ra)[[group_var]])
+})
+# --
+
+# - construct ordination plots -
+pcoas <- calc_ordination_from_distances(ps_filt_ra, dist_list = dist_list, color_levels = color_levels, ordination_type = "PCoA", group_var = group_var, shape = shape, coord_cor = coord_cor) 
+
+TrList_ra <- pcoas[["ordination_Tr_samples"]]
+# --
+```
+
+
+
+## Beta diversity results for relative abundance (ps_filt_ra)
+
+- **Distance boxplots**
+
+```{r, fig.width = 14, fig.height = 10*length(dist_analysis_list[["DistanceBoxplots"]]), warning = FALSE, message = FALSE, echo = FALSE}
+# pdf(file = "beta_p_0prev.pdf", width = 10, height = 8)
+do.call("grid.arrange", c(dist_analysis_list[["DistanceBoxplots"]], nrow = length(dist_analysis_list[["DistanceBoxplots"]])))
+# dev.off()
+```
+
+
+- **Write your conclusion here:** *e.g.: with many samples it is almost always significant. The between groups distances should be higher if there is real clustering by group*
+
+
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+for (i in 1:length(dist_analysis_list[["DistancePValuesDirect"]])){
+        print(knitr::kable(dist_analysis_list[["DistancePValuesDirect"]][[i]], caption = names(dist_analysis_list[["DistancePValuesDirect"]])[i]))
+}
+```
+
+
+- **Ordination Plots**
+
+```{r, fig.width = 10, fig.height = 3.5*length(TrList_ra), warning = FALSE, message = FALSE, echo = FALSE}
+#pdf(file = "pcoa_ra.pdf", width = 10, height = 8)
+do.call("grid.arrange", c(TrList_ra, ncol = 1))
+# TrList_ra[[1]]
+# dev.off()
+```
+
+
+- **adonis, Permutational Multivariate Analysis of Variance Using Distance Matrix**:
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+for (i in 1:length(adonis_list)){
+        print(knitr::kable(adonis_list[[i]], caption = names(adonis_list)[i]))
+}
+```
+
+
+- **Write your conclusion here:** *also permanova tests are sometimes significant, but check R2 also*
