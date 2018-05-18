@@ -3,8 +3,15 @@
 ### FUNCTION: check_phyla_distribution#
 #######################################
 # NB: throws error if "Phylum" is not in colnames(tax_table(physeq))
-# outputs a data.frame, summarising how many taxa each phylum has, and
-
+# outputs a data.frame, summarising the taxa distribution over the different phyla.
+## INPUT:
+# physeq: physeq object
+## OUTPUT:
+# data.frame, summarising the taxa distribution over the different phyla.
+# the Phyla are ordered so the Phylum with most counts (PC_of_counts) is on top, no of taxa is used to break ties in the ordering
+# columns: PC stands for percentage, 
+# mean/median_taxa_sum are the mean/median of the taxa_sums (total counts over all samples) of the taxa in the respective phylum
+# other columns should be clear
 
 check_phyla_distribution <- function(physeq) {
         
@@ -39,7 +46,10 @@ check_phyla_distribution <- function(physeq) {
 #######################################
 ### FUNCTION: get_assignemnt_distribution
 #######################################
-
+## INPUT:
+# physeq
+## OUTPUT:
+# df: illustrating the percentage of taxa that have been assigned to the different taxonomic levels. Non assigned levels must be NA
 
 get_assignemnt_distribution <- function(physeq){
         
@@ -181,7 +191,7 @@ check_assignment_vs_prevalence <- function(physeq, prevalences = seq(0, 90, by =
 # physeq
 # col = here a string of a taxonomic level
 
-plot_correlations_abundance_prev_sparsity <- function(physeq, col = NULL){ 
+plot_correlations_abundance_prev_sparsity <- function(physeq, col = NULL, col_vec = NULL){ 
         
         
         if (phyloseq::taxa_are_rows(physeq)) {
@@ -203,23 +213,32 @@ plot_correlations_abundance_prev_sparsity <- function(physeq, col = NULL){
         
         if (!is.null(col)) {
                 
-                CountOrder <- dplyr::group_by_(df_ab_prev, col) %>% dplyr::summarise(total_count_sum = sum(total_counts)) %>% dplyr::arrange(desc(total_count_sum))
-                # - make sure that also NAs are plotted, i.e. where coloring taxonomic rank is NA -
-                CountOrder[[col]] <- as.character(CountOrder[[col]])
-                CountOrder[[col]][is.na(CountOrder[[col]])] <- "NA"
-                df_ab_prev[[col]] <- as.character(df_ab_prev[[col]])
-                df_ab_prev[[col]][is.na(df_ab_prev[[col]])] <- "NA"
-                df_ab_prev[[col]] <- factor(df_ab_prev[[col]], levels = CountOrder[[col]], ordered = TRUE)
-                
-                if (nrow(CountOrder) <= 15) {
-                        custom_colors <- QuantColors15[1:nrow(CountOrder)]
-                        
+                if (!is.null(col_vec)){
+                        df_ab_prev[[col]] <- as.character(df_ab_prev[[col]])
+                        df_ab_prev[[col]][is.na(df_ab_prev[[col]])] <- "NA"
+                        if (length(col_vec) != length(unique(df_ab_prev[[col]]))){
+                                stop("provided col_vec did not fit in length to the col variable")
+                        }
+                        df_ab_prev[[col]] <- factor(df_ab_prev[[col]], levels = names(col_vec), ordered = TRUE)
+                        custom_colors <- col_vec
                 } else {
-                        custom_colors <- viridis(nrow(CountOrder))
+                        CountOrder <- dplyr::group_by_(df_ab_prev, col) %>% dplyr::summarise(total_count_sum = sum(total_counts)) %>% dplyr::arrange(desc(total_count_sum))
+                        # - make sure that also NAs are plotted, i.e. where coloring taxonomic rank is NA -
+                        CountOrder[[col]] <- as.character(CountOrder[[col]])
+                        CountOrder[[col]][is.na(CountOrder[[col]])] <- "NA"
+                        
+                        if (nrow(CountOrder) <= 15){
+                                custom_colors <- make_color_vector(CountOrder[[col]], QuantColors15)
+                        } else {
+                                custom_colors <- make_color_vector(CountOrder[[col]], viridis(nrow(CountOrder)))
+                        }
+                        
+                        df_ab_prev[[col]] <- as.character(df_ab_prev[[col]])
+                        df_ab_prev[[col]][is.na(df_ab_prev[[col]])] <- "NA"
+                        df_ab_prev[[col]] <- factor(df_ab_prev[[col]], levels = names(custom_colors), ordered = TRUE)
                         
                 }
                 
-                names(custom_colors) <- levels(df_ab_prev[[col]])
         }
         
         
@@ -446,6 +465,9 @@ boxplot_sampleSums <- function(physeq, group_var, color_levels, shape, test = "t
                                hide.ns = FALSE){
         
         DF <- cbind(sample_data(physeq), total_count = sample_sums(physeq))
+        DF <- DF[DF[[group_var]] %in% names(color_levels),]
+        
+        DF[[group_var]] <- factor(DF[[group_var]], levels = names(color_levels), ordered = TRUE)
         
         Tr <-  ggplot(DF, aes_string(x = group_var, y = "total_count", color = group_var)) 
         Tr <- Tr + 
@@ -460,7 +482,7 @@ boxplot_sampleSums <- function(physeq, group_var, color_levels, shape, test = "t
         }
         
         # - since you might have more than two levels in each plot you need to set the comparisons argument in stat_compare_means -
-        group_fac <- factor(sample_data(physeq)[[group_var]])
+        group_fac <- factor(DF[[group_var]])
         fac_levels <- levels(group_fac)
         
         comparisonList <- get_unique_facLevel_combinations(fac_levels)

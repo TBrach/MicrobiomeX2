@@ -26,11 +26,9 @@ ps_filt <- phyloseq::prune_taxa(taxa_names(ps_tca_filt), ps) # you need ps_filt 
 # --
 
 # - Generate a visual overview of the filtering step -
-filterList <- visualize_filtering(physeq = ps_tca, prevalence = prevalence, taxa_sums_quantile = taxa_sums_quantile)
+filterList <- visualize_filtering(physeq = ps_tca, prevalence = prevalence, taxa_sums_quantile = taxa_sums_quantile, col_vec = NULL)
 # --
 ```
-
-
 
 - The filtering (SFs) was done using all samples, because it is better to determine size factors and calculate prevalence on all samples.
 - Now the phyloseq objects are pruned to only contain the samples that are part of group_var_levels
@@ -65,8 +63,8 @@ rm(physeq_list, keepTaxa)
 ps_filt_ra <- phyloseq::transform_sample_counts(ps_filt, function(x){x/sum(x)}) 
 
 
-# - generate barplot representations of counts before and after filtering - 
-bar_plot_ps_vs_ps_tca <- plot_sample_bars_compare(physeq = ps, physeq2 = ps_tca, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, fill = "Phylum", color_sample_names = TRUE)
+# - generate barplot representations of counts before and after total count adjustment - 
+bar_plot_ps_vs_ps_tca <- plot_sample_bars_compare(physeq = ps, physeq2 = ps_tca, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, color_sample_names = TRUE, fill = "Phylum", col_vec = phylum_colors)
 # --
 
 SFs <- SFs[names(SFs) %in% sample_names(ps)]
@@ -106,9 +104,8 @@ grid.arrange(SFList[[2]], SFList[[3]], ncol = 2)
 - **Write your conclusion here:** *e.g.: size factors look reasonable when they are around 1. If some size factors are very small or low, something might be weird with those samples. Remember size factor adjustment affects DeSeq analysis, but not analyses on relative abundance*
 
 
-- Define here the Phyla colors
+- Maybe re-define here the Phyla colors
 ```{r, warning = FALSE, message = FALSE, echo = FALSE}
-Phyla <- check_phyla_distribution(ps_filt)
-Phyla$Phylum <- factor(Phyla$Phylum, levels = unique(Phyla$Phylum), ordered = T)
-phylum_colors <- assign_default_colors(Phyla, "Phylum")
+# Phyla <- check_phyla_distribution(ps_filt)
+# phylum_colors <- make_color_vector(as.character(Phyla$Phylum), QuantColors15)
 ```

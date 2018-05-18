@@ -112,7 +112,7 @@ simply_adjust_LS <- function(physeq, SFs = NULL, zeros.count = FALSE, percentile
 #######################################
 
 
-visualize_filtering <- function(physeq, prevalence, taxa_sums_quantile){ 
+visualize_filtering <- function(physeq, prevalence, taxa_sums_quantile, col_vec = NULL){ 
         
         df_ab_prev <- data.frame(Taxon_No = 1:ntaxa(physeq), 
                                  total_counts = taxa_sums(physeq),
@@ -150,23 +150,32 @@ visualize_filtering <- function(physeq, prevalence, taxa_sums_quantile){
         df_ab_prev2 <- df_ab_prev
         # - adjust color and order of the phyla in the following plot - 
         col <- "Phylum"
-        CountOrder <- dplyr::group_by_(df_ab_prev2, col) %>% dplyr::summarise(total_count_sum = sum(total_counts)) %>% dplyr::arrange(desc(total_count_sum))
         
-        CountOrder[[col]] <- as.character(CountOrder[[col]])
-        CountOrder[[col]][is.na(CountOrder[[col]])] <- "NA"
-        df_ab_prev2[[col]] <- as.character(df_ab_prev2[[col]])
-        df_ab_prev2[[col]][is.na(df_ab_prev2[[col]])] <- "NA"
-        df_ab_prev2[[col]] <- factor(df_ab_prev2[[col]], levels = CountOrder[[col]], ordered = TRUE)
-        
-        if (nrow(CountOrder) <= 15) {
-                custom_colors <- QuantColors15[1:nrow(CountOrder)]
-                
+        if (!is.null(col_vec)){
+                df_ab_prev2[[col]] <- as.character(df_ab_prev2[[col]])
+                df_ab_prev2[[col]][is.na(df_ab_prev2[[col]])] <- "NA"
+                if (length(col_vec) != length(unique(df_ab_prev2[[col]]))){
+                        stop("provided col_vec did not fit in length to the col variable")
+                }
+                df_ab_prev2[[col]] <- factor(df_ab_prev2[[col]], levels = names(col_vec), ordered = TRUE)
+                custom_colors <- col_vec
         } else {
-                custom_colors <- viridis(nrow(CountOrder))
+                CountOrder <- dplyr::group_by_(df_ab_prev2, col) %>% dplyr::summarise(total_count_sum = sum(total_counts)) %>% dplyr::arrange(desc(total_count_sum))
+                
+                CountOrder[[col]] <- as.character(CountOrder[[col]])
+                CountOrder[[col]][is.na(CountOrder[[col]])] <- "NA"
+                
+                if (nrow(CountOrder) <= 15){
+                        custom_colors <- make_color_vector(CountOrder[[col]], QuantColors15)
+                } else {
+                        custom_colors <- make_color_vector(CountOrder[[col]], viridis(nrow(CountOrder)))
+                }
+                
+                df_ab_prev2[[col]] <- as.character(df_ab_prev2[[col]])
+                df_ab_prev2[[col]][is.na(df_ab_prev2[[col]])] <- "NA"
+                df_ab_prev2[[col]] <- factor(df_ab_prev2[[col]], levels = names(custom_colors), ordered = TRUE)
                 
         }
-        
-        names(custom_colors) <- levels(df_ab_prev2[[col]])
         # --
         
         
@@ -203,6 +212,15 @@ visualize_filtering <- function(physeq, prevalence, taxa_sums_quantile){
 plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, test = "t.test", p_adjust_method = "fdr",
                              symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")),
                              hide.ns = FALSE){
+        
+        
+        # in case you do not want to see all samples
+        if (!all(unique(sample_data(physeq)[[group_var]]) %in% names(color_levels))) {
+                keepSamples <- sample_names(physeq)[sample_data(physeq)[[group_var]] %in% names(color_levels)]
+                physeq <- prune_samples(samples = keepSamples, physeq)
+                sample_data(physeq)[[group_var]] <- factor(sample_data(physeq)[[group_var]], levels = names(color_levels), order = TRUE)
+                SFs <- SFs[names(SFs) %in% keepSamples]
+        }
         
         DF <- cbind(sample_data(physeq), SF = SFs)
         
@@ -258,12 +276,19 @@ plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, test =
 # generates abundance barplots (see plot_bar_own) to compare ps to ps_tca, i.e. to see how SFs adjustment affects the abundances 
 
 plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundance", group_var, color_levels, fill = NULL,
-                                 color_sample_names = TRUE){
+                                 color_sample_names = TRUE, col_vec = NULL){
         
         # - prepare mdf of ps physeq -
         if(taxa_are_rows(physeq)) { physeq <- t(physeq) }
         
-        if (!is.factor(sample_data(physeq)[[group_var]])) {sample_data(physeq)[[group_var]] <- as.factor(sample_data(physeq)[[group_var]])}
+        # in case you do not want to see all samples
+        if (!all(unique(sample_data(physeq)[[group_var]]) %in% names(color_levels))) {
+                keepSamples <- sample_names(physeq)[sample_data(physeq)[[group_var]] %in% names(color_levels)]
+                physeq <- prune_samples(samples = keepSamples, physeq)
+        }
+        sample_data(physeq)[[group_var]] <- factor(sample_data(physeq)[[group_var]], levels = names(color_levels), order = TRUE)
+        
+        # if (!is.factor(sample_data(physeq)[[group_var]])) {sample_data(physeq)[[group_var]] <- factor(sample_data(physeq)[[group_var]], levels = names(color_levels), order = TRUE)}
         
         if (is.null(fill)) { fill = "Phylum"}
         
@@ -273,7 +298,6 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         LookUpDF <- data.frame(Sample = sample_names(physeq), Group = sample_data(physeq)[[group_var]])
         LookUpDF <- LookUpDF[order(match(LookUpDF$Group, levels(LookUpDF$Group))), ]
         mdf$Sample <- factor(mdf$Sample, levels = LookUpDF$Sample, ordered = TRUE)
-        # mdf$Sample <- factor(mdf$Sample, levels = c("A-15A", "A-5A", "A-2A", "A-1A", "B-15A", "B-5A", "B-2A", "B-1A"), ordered = TRUE)
         
         # order fill levels according to abundance over all samples
         mdf[, fill] <- as.character(mdf[, fill])
@@ -286,7 +310,13 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         # - prepare mdf of ps_tca physeq -
         if(taxa_are_rows(physeq2)) { physeq2 <- t(physeq2) }
         
-        if (!is.factor(sample_data(physeq2)[[group_var]])) {sample_data(physeq2)[[group_var]] <- as.factor(sample_data(physeq2)[[group_var]])}
+        if (!all(unique(sample_data(physeq2)[[group_var]]) %in% names(color_levels))) {
+                keepSamples <- sample_names(physeq2)[sample_data(physeq2)[[group_var]] %in% names(color_levels)]
+                physeq2 <- prune_samples(samples = keepSamples, physeq2)
+                sample_data(physeq2)[[group_var]] <- factor(sample_data(physeq2)[[group_var]], levels = names(color_levels), order = TRUE)
+        }
+        
+        if (!is.factor(sample_data(physeq2)[[group_var]])) {sample_data(physeq2)[[group_var]] <- factor(sample_data(physeq2)[[group_var]], levels = names(color_levels), order = TRUE)}
         
         if (is.null(fill)) { fill = "Phylum"}
         
@@ -316,13 +346,15 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         # --
         
         
-        
-        if (length(levels(mdf[, fill])) <= 15) {
-                fill_colors <- QuantColors15[1:length(levels(mdf[, fill]))]
-                names(fill_colors) <- rev(levels(mdf[, fill]))
+        if (is.null(col_vec)){
+                if (length(levels(mdf[, fill])) <= 15) {
+                        fill_colors <- make_color_vector(mdf[, fill], rev(QuantColors15[1:length(levels(mdf[, fill]))]))
+                } else {
+                        fill_colors <- make_color_vector(mdf[, fill], viridis(length(levels(mdf[, fill]))))
+                }
+                
         } else {
-                fill_colors <- rev(viridis(length(levels(mdf[, fill]))))
-                names(fill_colors) <- rev(levels(mdf[, fill]))
+                fill_colors <- col_vec
         }
         
         

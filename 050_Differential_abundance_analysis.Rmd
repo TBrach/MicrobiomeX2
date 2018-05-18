@@ -1,8 +1,6 @@
 # Differential Abundance analysis
 
-- **For all analyses, fisher, DeSeq, wilcoxon: even if no taxon was significantly different between the groups (levels), the ten taxa with the lowest p-value (test stat) are illustrated. Also even if more than 25 taxa are significant, only the 25 top hits are illustrated.**
-- **NB further: if significance levels are shown with asterisk in the violin plots, these are significant levels coming from a t.test or wilcoxon test (ggpubr stat_compare_mean), the significance levels from the actual test are shown in the tables and indicated in the taxon_names of the violin plots (working on improving this)**
-
+- **For all analyses, fisher, DeSeq, wilcoxon: even if no taxon was significantly different between the groups (levels), the ten taxa with the lowest p-value (test stat) are illustrated.**
 
 
 ## Differential prevalence analysis with fisher.test
@@ -25,8 +23,8 @@ taxa_hit_df <- hit_list[["hit_table"]]
 
 # - define colors for heatmap -
 significance_colors <- brewer.pal(4, "Reds")
-significance_colors <- c(rev(significance_colors), "gray")
-names(significance_colors) = c("****", "***", "**", "*", "ns")
+significance_colors <- c(rev(significance_colors), "gray", "violet")
+names(significance_colors) = c("****", "***", "**", "*", "ns", "?")
 taxa_colors <- list("signi_adj" = significance_colors, "Phylum" = phylum_colors)
 
 if (!is.null(shape)){
@@ -42,7 +40,6 @@ if (!is.null(shape)){
 taxa_annotation <- get_taxon_names(taxa_hit_df)
 # --
 
-# --
 ```
 
 
@@ -62,8 +59,8 @@ p <- plot_heatmap_physeq(physeq_to_test, sample_colors = sample_colors, taxa_inf
                     zero_color = "gray", color_function = viridis, color_steps_bw_markers = 10, log_transform = FALSE, drop_color_levels = TRUE,
                     border_color = NA, 
                     cluster_cols = FALSE, cluster_rows = FALSE, show_rownames = TRUE, show_colnames = FALSE, annotation_names_row = FALSE, 
-                    annotation_names_col = FALSE, annotation_legend = TRUE, legend = TRUE, font_size = 10, 
-                    fontsize_row = 6, fontsize_col = 6, fontsize_number = 6)
+                    annotation_names_col = FALSE, annotation_legend = TRUE, legend = TRUE, font_size = 18, 
+                    fontsize_row = 16, fontsize_col = 16, fontsize_number = 16)
 
 # pdf(file = "heatmap.pdf", width = 7, height = 10)
 # grid::grid.newpage()
@@ -72,4 +69,190 @@ p <- plot_heatmap_physeq(physeq_to_test, sample_colors = sample_colors, taxa_inf
 ```
 
 - **Write your conclusion here:** *e.g: Some taxa were indeed more prevalent in the one group or the other*
+
+
+
+
+## DeSeq2 analysis
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# - choose the physeq object to run the test on -
+physeq_to_test <- ps_filt 
+# --
+
+# - run the test function resulting in result list - NB: a bit special for DESeq because you also get a new physeq
+res_list <- test_differential_abundance_DESeq2single(physeq = physeq_to_test, group_var = group_var, compare = group_var_levels, SFs = SFs, p.adjust.method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")), cooksCutoff = FALSE)
+diff_ab_df <- res_list[[1]]
+physeq_to_test <- res_list[[2]]
+# -- 
+
+# - catch the hits -
+hit_list <- format_hit_table(diff_ab_df, p.adjust.threshold = 0.05, p.adjust.method = NULL)
+taxa_hit_df <- hit_list[["hit_table"]]
+#--
+
+# - define colors for heatmap -
+significance_colors <- brewer.pal(4, "Reds")
+significance_colors <- c(rev(significance_colors), "gray", "violet")
+names(significance_colors) = c("****", "***", "**", "*", "ns", "?")
+taxa_colors <- list("signi_adj" = significance_colors, "Phylum" = phylum_colors)
+
+if (!is.null(shape)){
+        sample_colors <- list(color_levels, NA)
+        names(sample_colors) <- c(group_var, shape)
+} else {
+        sample_colors <- list(color_levels)
+        names(sample_colors) <- group_var
+}
+# --
+
+# - get a more informative taxa annotation of the hits -
+taxa_annotation <- get_taxon_names(taxa_hit_df)
+taxa_annotation1 <- paste(taxa_annotation, " (", taxa_hit_df$signi_adj, ")", sep = "")
+# --
+
+# - prepare violin plots -
+taxa_illustrated <- 10
+violin_plots <- plot_hittaxa_boxAndviolin(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, 
+                                          taxa_info_df = head(taxa_hit_df, taxa_illustrated), taxa_annotation = head(taxa_annotation1, taxa_illustrated), shape = NULL, facet_cols = 5,
+                                          excludeZero = FALSE, logTransform = FALSE)
+# --
+```
+
+
+- the number of significantly different taxa found: `r hit_list[[2]]`
+
+- list the most differently "abundant" taxa (**NB: even if no taxon is significant the 10 with the lowest p_values are shown. Max 40 are shown**)
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE, results = "asis"}
+knitr::kable(head(taxa_hit_df, 40), caption = "taxa with most different prevalence between the groups")
+```
+
+- show heat map of the most differently abundant taxa between the groups (max 40 are shown)
+
+```{r, fig.width = 14, fig.height = 18, warning = FALSE, message = FALSE, echo = FALSE}
+p <- plot_heatmap_physeq(physeq_to_test, sample_colors = sample_colors, taxa_info_df = head(taxa_hit_df, 40), taxa_colors = taxa_colors, 
+                    taxa_annotation = head(taxa_annotation, 40), max_abundance_for_color = quantile(as(otu_table(physeq_to_test), "matrix"), 0.95), gradient_steps = c(0.15, 0.3, 0.45, 1), 
+                    zero_color = "gray", color_function = viridis, color_steps_bw_markers = 10, log_transform = FALSE, drop_color_levels = TRUE,
+                    border_color = NA, 
+                    cluster_cols = FALSE, cluster_rows = FALSE, show_rownames = TRUE, show_colnames = FALSE, annotation_names_row = FALSE, 
+                    annotation_names_col = FALSE, annotation_legend = TRUE, legend = TRUE, font_size = 14, 
+                    fontsize_row = 12, fontsize_col = 12, fontsize_number = 12)
+
+# pdf(file = "heatmap.pdf", width = 7, height = 10)
+# grid::grid.newpage()
+# grid::grid.draw(p$gtable)
+# dev.off()
+```
+
+
+- show violin plot of the most differently abundant taxa between the groups
+
+```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE, echo = FALSE}
+violin_plots[[2]] + scale_y_log10()
+
+# pdf(file = "heatmap.pdf", width = 7, height = 10)
+# grid::grid.newpage()
+# grid::grid.draw(p$gtable)
+# dev.off()
+```
+
+
+- **Write your conclusion here:** *e.g: Some taxa were indeed more prevalent in the one group or the other*
+
+
+
+## Wilcoxon test excluding zeros using relative abundances 
+
+- **NB: done with ps_filt_ra, but could also be done with ps_tca_filt, or logged counts**
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# - choose the physeq object to run the test on -
+physeq_to_test <- ps_filt_ra
+# --
+
+# - run the test function
+diff_ab_df <- test_differential_abundance_Wilcoxonsingle(physeq = physeq_to_test, group_var, compare = group_var_levels, excludeZeros = TRUE, p.adjust.method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
+
+# diff_ab_df1 <- test_differential_abundance_WilcoxonsingleManiCoin(physeq = physeq_to_test, group_var, compare = group_var_levels, block = NULL, excludeZeros = TRUE, p.adjust.method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
+
+# -- 
+
+# - catch the hits -
+hit_list <- format_hit_table(diff_ab_df, p.adjust.threshold = 0.05, p.adjust.method = NULL)
+taxa_hit_df <- hit_list[["hit_table"]]
+#--
+
+
+# - define colors for heatmap -
+significance_colors <- brewer.pal(4, "Reds")
+significance_colors <- c(rev(significance_colors), "gray", "violet")
+names(significance_colors) = c("****", "***", "**", "*", "ns", "?")
+taxa_colors <- list("signi_adj" = significance_colors, "Phylum" = phylum_colors)
+
+if (!is.null(shape)){
+        sample_colors <- list(color_levels, NA)
+        names(sample_colors) <- c(group_var, shape)
+} else {
+        sample_colors <- list(color_levels)
+        names(sample_colors) <- group_var
+}
+# --
+
+# - get a more informative taxa annotation of the hits -
+taxa_annotation <- get_taxon_names(taxa_hit_df)
+taxa_annotation1 <- paste(taxa_annotation, " (", taxa_hit_df$signi_adj, ")", sep = "")
+# --
+
+# - prepare violin plots -
+taxa_illustrated <- 10
+violin_plots <- plot_hittaxa_boxAndviolin(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, 
+                                          taxa_info_df = head(taxa_hit_df, taxa_illustrated), taxa_annotation = head(taxa_annotation1, taxa_illustrated), shape = NULL, facet_cols = 5,
+                                          excludeZero = TRUE, logTransform = FALSE)
+# --
+```
+
+
+- the number of significantly different taxa found: `r hit_list[[2]]`
+
+- list the most differently "abundant" taxa (**NB: even if no taxon is significant the 10 with the lowest p_values are shown. Max 40 are shown**)
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE, results = "asis"}
+knitr::kable(head(taxa_hit_df, 40), caption = "taxa with most different prevalence between the groups")
+```
+
+- show heat map of the most differently abundant taxa between the groups (max 40 are shown)
+
+```{r, fig.width = 14, fig.height = 18, warning = FALSE, message = FALSE, echo = FALSE}
+p <- plot_heatmap_physeq(physeq_to_test, sample_colors = sample_colors, taxa_info_df = head(taxa_hit_df, 40), taxa_colors = taxa_colors, 
+                    taxa_annotation = head(taxa_annotation, 40), max_abundance_for_color = quantile(as(otu_table(physeq_to_test), "matrix"), 0.95), gradient_steps = c(0.15, 0.3, 0.45, 1), 
+                    zero_color = "gray", color_function = viridis, color_steps_bw_markers = 10, log_transform = FALSE, drop_color_levels = TRUE,
+                    border_color = NA, 
+                    cluster_cols = FALSE, cluster_rows = FALSE, show_rownames = TRUE, show_colnames = FALSE, annotation_names_row = FALSE, 
+                    annotation_names_col = FALSE, annotation_legend = TRUE, legend = TRUE, font_size = 14, 
+                    fontsize_row = 12, fontsize_col = 12, fontsize_number = 12)
+
+# pdf(file = "heatmap.pdf", width = 7, height = 10)
+# grid::grid.newpage()
+# grid::grid.draw(p$gtable)
+# dev.off()
+```
+
+
+- show violin plot of the most differently abundant taxa between the groups
+
+```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE, echo = FALSE}
+violin_plots[[2]] + scale_y_log10()
+
+# pdf(file = "heatmap.pdf", width = 7, height = 10)
+# grid::grid.newpage()
+# grid::grid.draw(p$gtable)
+# dev.off()
+```
+
+
+- **Write your conclusion here:** *e.g: Some taxa were indeed more prevalent in the one group or the other*
+
 

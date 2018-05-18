@@ -34,6 +34,68 @@ areColors <- function(x) {
 
 # --
 #######################################
+### FUNCTION: assign_default_colors
+#######################################
+# Function that takes a df and a variable_name as input, and defines colors to the factor levels or unique entries based on cbPalette, QuantColors15 or viridis
+
+assign_default_colors <- function(info_df, variable_name){
+        
+        if (!(variable_name %in% colnames(info_df))) {
+                stop("variable_name must be a variable/column in info_df")   
+        }
+        
+        if (is.factor(info_df[[variable_name]])) {
+                uniqueEntries <- levels(info_df[[variable_name]])
+        } else {
+                uniqueEntries <- unique(info_df[[variable_name]])
+        }
+        
+        
+        if (length(uniqueEntries) < 9) {
+                color_char <- cbPalette[1:length(uniqueEntries)]
+        } else if (length(uniqueEntries) < 16) {
+                color_char <- QuantColors15[1:length(uniqueEntries)]
+        } else {
+                color_char <- viridis(length(uniqueEntries))
+        }
+        
+        names(color_char) <- uniqueEntries
+        
+        color_char
+}
+# --
+
+
+
+# --
+#######################################
+### FUNCTION: make_color_vector
+#######################################
+# give a character vector or factor as input together with a color Palette
+# outputs a named color vector, using the factor levels or the unique(character vector)
+
+make_color_vector <- function(in_vector, col_pal){
+        
+        if (is.factor(in_vector)) {
+                vec_names <- levels(in_vector)
+        } else {
+                vec_names <- unique(as.character(in_vector))
+        }
+        
+        if (length(col_pal) < length(vec_names)) {
+                stop("not enough colors in your color palette")   
+        }
+        
+        col_vector <- col_pal[1:length(vec_names)]
+        names(col_vector) <- vec_names
+        col_vector
+}
+# --
+
+
+
+# --
+#######################################
 ### lmp (to get p_value from lm fit)
 #######################################
 # needed to get the p-value from-linear fit objects (from stackoverflow)

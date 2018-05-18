@@ -164,16 +164,15 @@ format_hit_table <- function (result_df, p.adjust.threshold = 0.1, p.adjust.meth
         
         result_df <- arrange(result_df, p_val_adj, p_val)
         
-        no_hits <- sum(result_df$p_val_adj <= p.adjust.threshold)
+        no_hits <- sum(result_df$p_val_adj <= p.adjust.threshold, na.rm = TRUE)
         
         keepTaxa <- no_hits
         
-        if (keepTaxa < 5 && nrow(result_df) >= 5) {
-                keepTaxa <- 5
-        } else if (keepTaxa < 5 && nrow(result_df < 5)){
+        if (keepTaxa < 10 && nrow(result_df) >= 10) {
+                keepTaxa <- 10
+        } else if (keepTaxa < 10 && nrow(result_df < 10)){
                 keepTaxa <- nrow(result_df)
         }
-        
         
         
         df <- result_df[1:keepTaxa,]
@@ -505,38 +504,570 @@ plot_heatmap_physeq <- function (physeq, sample_colors = NULL, taxa_info_df = NU
 # --
 
 
-
 # --
 #######################################
-### FUNCTION: assign_default_colors
+### test_differential_abundance_DESeq2single
 #######################################
+## Inputs
+# physeq: phyloseq object
+# group_var: name of column that defines group fac in sample_data
+# SFs: often you might want to give the SizeFactors already because you wanted to calculate them on non-filtered data,
+# when SFs are not NULL, type is ignored
+# type: type in estimateSizeFactors, ignored when Size factors given
+## OUTPUT:
+# list, first: result df of DESEQ2 analysis, second: the adjusted phyloseq object after size factor correction
 
-assign_default_colors <- function(info_df, variable_name){
+
+# ATTENTION: you could add here block as Mani had in test_differential_abundance_DESeq2
+
+test_differential_abundance_DESeq2single <- function(physeq, group_var, compare = NULL, cooksCutoff = TRUE, SFs = NULL, type = "ratio", p.adjust.method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))){
         
-        if (!(variable_name %in% colnames(info_df))) {
-                stop("variable_name must be a variable/column in info_df")   
+        if (taxa_are_rows(physeq)) { 
+                physeq <- t(physeq)
         }
         
-        if (is.factor(info_df[[variable_name]])) {
-                uniqueEntries <- levels(info_df[[variable_name]])
+        if(! group_var %in% colnames(sample_data(physeq))) {
+                stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
+        }
+        
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        
+        if (!is.null(compare)) {
+                group_var_levels <- compare
         } else {
-                uniqueEntries <- unique(info_df[[variable_name]])
+                group_var_levels <- levels(group_fac)
+        }
+        
+        if (length(group_var_levels) != 2) {
+                stop(paste0("compare (group_var_levels) must consist of two groups - you asked for ", 
+                            paste(group_var_levels, collapse = ", ")))
+        }
+        
+        if (!all(group_var_levels %in% levels(group_fac))) {
+                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
         }
         
         
-        if (length(uniqueEntries) < 9) {
-                color_char <- cbPalette[1:length(uniqueEntries)]
-        } else if (length(uniqueEntries) < 16) {
-                color_char <- QuantColors15[1:length(uniqueEntries)]
+        
+        # NB: DESeq2 can not deal with ordered factors, sees them somehow as just one level, therefore
+        sample_data(physeq)[[group_var]] <- factor(group_fac, levels = c(group_var_levels, setdiff(levels(group_fac), group_var_levels)), ordered = FALSE)
+        
+        DES = phyloseq::phyloseq_to_deseq2(physeq, formula(paste("~", group_var)))
+        
+        
+        if (is.null(SFs)){
+                if(type == "ratio"){
+                        GM <- apply(otu_table(physeq), 2, gm_own, zeros.count = FALSE)
+                }
+                
+                dds <- estimateSizeFactors(DES, type = type, geoMeans = GM)
+                # NB: geoMeans is ignored when type = "iterate"
+                # NB2: "iterate" takes much longer than "ratio", and when using GM via gm_own with "ratio" the size factors 
+                # correlate with above 99% with size factors from "iterate"
+                # NB3: "poscounts" is the same as "ratio" with GM calculated with zeros.count = TRUE!!
+                # SFs2 <- sizeFactors(dds)
+                
         } else {
-                color_char <- viridis(length(uniqueEntries))
+                dds <- DES
+                sizeFactors(dds) = SFs
+                # identical(sizeFactors(dds), SFs) 
         }
         
-        names(color_char) <- uniqueEntries
         
-        color_char
+        dds <-  DESeq(dds, fitType = "parametric", test = "Wald", 
+                      quiet = TRUE, minReplicatesForReplace = Inf) 
+        
+        # to get the size factor adjusted physeq object
+        physeq_out <- physeq
+        otu_table(physeq_out) <- otu_table(t(counts(dds, normalized = TRUE)), taxa_are_rows = FALSE)
+        
+        
+        
+        # - analyse the res -
+        
+        res <- as.data.frame(results(dds, contrast = c(group_var, group_var_levels), cooksCutoff = cooksCutoff))
+        
+        res$p_val_adj <- p.adjust(res$pvalue, method = p.adjust.method) # NB: in case of "fdr" same as default DESeq2
+        
+        CT <- counts(dds, normalized = TRUE)
+        i = 1
+        j = 2
+        n1 <- sum(group_fac == group_var_levels[i])
+        n2 <- sum(group_fac == group_var_levels[j])
+        # res$Median_grp1 <- apply(CT[, group_fac == group_var_levels[i]], 1, median)
+        # res$Median_grp2 <- apply(CT[, group_fac == group_var_levels[j]], 1, median)
+        res$Mean_grp1 <- apply(CT[, group_fac == group_var_levels[i]], 1, mean)
+        res$Mean_grp2 <- apply(CT[, group_fac == group_var_levels[j]], 1, mean)
+        # res$baseMeanSelf <- apply(CT, 1, mean) # exactly the same as baseMean!
+        # res$Zeros_grp1 <- apply(CT[, group_fac == group_var_levels[i]], 1, function(cnts){sum(cnts == 0)})
+        # res$Zeros_grp2 <- apply(CT[, group_fac == group_var_levels[j]], 1, function(cnts){sum(cnts == 0)})
+        res$Present_grp1 <- apply(CT[, group_fac == group_var_levels[i]], 1, function(cnts){sum(cnts != 0)})
+        res$Present_grp2 <- apply(CT[, group_fac == group_var_levels[j]], 1, function(cnts){sum(cnts != 0)})
+        res$prev_PC_grp1 <- round(100*(res$Present_grp1/n1),1)
+        res$prev_PC_grp2 <- round(100*(res$Present_grp2/n2), 1)
+        #res$Sparsity_grp1 <- 100*(res$Zeros_grp1/n1)
+        #res$Sparsity_grp2 <- 100*(res$Zeros_grp2/n2)
+        
+        # - add sginificance and direction -
+        symnum.args$x <- res$pvalue
+        res$signi <- do.call(stats::symnum, symnum.args) %>% as.character()
+        symnum.args$x <- res$p_val_adj
+        res$signi_adj <- do.call(stats::symnum, symnum.args) %>% as.character() # note ? in case of p_val = NA
+        
+        res$direction <- rep(group_var_levels[2], nrow(res))
+        res$direction[res$log2FoldChange > 0] <- group_var_levels[1]
+        # --
+        
+        res$Taxon <- rownames(res)
+        
+        res <- dplyr::select(res, Taxon, teststat = stat, p_val = pvalue, p_val_adj,
+                             signi, signi_adj, direction, 
+                             baseMean, log2FoldChange, Mean_grp1,
+                             Mean_grp2, prev_PC_grp1, prev_PC_grp2)
+        
+        # NB: I dropped here padj from DESeq since same as p_val_adj in case of p.adjust.method = "fdr"
+        res <- cbind(res, tax_table(physeq))
+        res <- dplyr::arrange(res, desc(abs(teststat)))
+        list(result_df = res, physeq_out = physeq_out) 
+        
 }
 # --
+
+
+
+
+
+# --
+#######################################
+### plot_hittaxa_boxAndviolin ##
+#################
+
+
+plot_hittaxa_boxAndviolin <- function(physeq, group_var, color_levels, taxa_info_df = NULL, taxa_annotation = NULL, 
+                                      facet_cols = 5, shape = NULL, excludeZero = FALSE, logTransform = FALSE){
+        
+        # - make sure group_var and shape are in the sample_data -
+        if (!group_var %in% colnames(sample_data(physeq))) {
+                stop("group_var must be a variable in sample_data(physeq)")
+        }
+        
+        if (is.null(shape) || !shape %in% colnames(sample_data(physeq))) {
+                shape = NULL
+        }
+        # --
+        
+        
+        # - show only samples "represented" in color levels -
+        if (!all(unique(sample_data(physeq)[[group_var]]) %in% names(color_levels))) {
+                keepSamples <- sample_names(physeq)[sample_data(physeq)[[group_var]] %in% names(color_levels)]
+                physeq <- prune_samples(samples = keepSamples, physeq)
+        }
+        
+        
+        # make sure the order of the group levels is as defined by color_levels
+        sample_data(physeq)[[group_var]] <- factor(sample_data(physeq)[[group_var]], levels = names(color_levels), order = TRUE)
+        # --
+        
+        # - keep only taxa in taxa_info_df in physeq -
+        if (!is.null(taxa_info_df)) {
+                
+                if (!all(rownames(taxa_info_df) %in% taxa_names(physeq))) {
+                        stop("not all taxa in taxa_info_df are taxa in physeq!")
+                }
+                pruned_ps <- prune_taxa(rownames(taxa_info_df), physeq)
+        } else {
+                pruned_ps <- physeq
+        }
+        # --
+        
+        # - check or set taxa_annotation -
+        if (is.null(taxa_annotation)){
+                if (!is.null(taxa_info_df)) {
+                        taxa_annotation <- paste(taxa_info_df$Taxon, "_", taxa_info_df$p_val_adj, sep = "")
+                } else {
+                        taxa_annotation <- taxa_names(pruned_ps) # or you could use 
+                        # taxa_annotation <- get_taxon_names(as.data.frame(tax_table(pruned_ps)))
+                }
+        }
+        
+        if (length(taxa_annotation) != ntaxa(pruned_ps)) {
+                warning("taxa_annotation did not fit in length to nrow(taxa_info_df) or ntaxa(physeq), used taxa_names")
+                taxa_annotation <- taxa_names(pruned_ps)
+        }
+        
+        taxa_annotation <- as.character(taxa_annotation)
+        
+        taxa_annotation[is.na(taxa_annotation)] <- "NA"
+        
+        taxa_annotation <- make.unique(taxa_annotation)
+        
+        if (!is.null(taxa_info_df)) {
+                taxa_lookup <- data.frame(Taxon = taxa_info_df$Taxon, Annotation = taxa_annotation)
+        } else {
+                taxa_lookup <- data.frame(Taxon = taxa_names(pruned_ps), Annotation = taxa_annotation)
+        }
+        # --
+
+        # - generate data frame for plotting, add annotation, and make sure order of annotation fits -
+        DF_CT <- psmelt(pruned_ps)
+        
+        DF_CT$Annotation <- taxa_lookup$Annotation[match(DF_CT$OTU, taxa_lookup$Taxon)]
+        DF_CT$Annotation <- factor(DF_CT$Annotation, levels = taxa_annotation, ordered = TRUE) #
+        # --
+        
+        # - exclude zeros and log transform if asked for -
+        if (excludeZero) {
+                DF_CT <- filter(DF_CT, Abundance != 0)
+        }
+        
+        if (logTransform) {
+                
+                minValue <- min(DF_CT$Abundance)
+                
+                if (minValue < 0){
+                        stop("you asked for log_transform but the lowest count in your data is already below 0!")
+                }
+                if (minValue == 0) {
+                        pseudocount <- min(DF_CT$Abundance[DF_CT$Abundance > 0])/2
+                        DF_CT$Abundance[DF_CT$Abundance == 0] <- pseudocount
+                }
+                DF_CT$Abundance <- log10(DF_CT$Abundance)
+                
+        }
+        # --
+        
+        
+        
+                
+        Tr <- ggplot(DF_CT, aes_string(x = group_var, y = "Abundance", col = group_var))
+        Tr <- Tr +
+                geom_boxplot(outlier.color = NA) +
+                geom_point(aes_string(shape = shape), size = 1, alpha = 0.6, position = position_jitterdodge(jitter.width = .8)) +
+                facet_wrap(~ Annotation, ncol = facet_cols, scales = "free_y") +
+                scale_color_manual("", values = color_levels) +
+                xlab("") +
+                ylab("abundance") +
+                theme_bw()
+        
+        if (is.null(shape)) {
+                Tr <- Tr + theme(legend.position = "none")
+        }
+        
+        # if (ttestp == "yes"){
+        #         Tr <- Tr + ggpubr::stat_compare_means(label = "p.signif", method = "t.test", label.x = 1.5) # t.test significance
+        # }
+                
+        Tr1 <- ggplot(DF_CT, aes_string(x = group_var, y = "Abundance", col = group_var))
+        Tr1 <- Tr1 +
+                geom_violin(fill = NA) +
+                geom_point(aes_string(shape = shape), size = 1, alpha = 0.6, position = position_jitterdodge(jitter.width = 0.8)) +
+                facet_wrap(~ Annotation, ncol = facet_cols, scales = "free_y") +
+                scale_color_manual("", values = color_levels) +
+                xlab("") +
+                ylab("abundance") +
+                theme_bw()
+        
+        if (is.null(shape)) {
+                Tr1 <- Tr1 + theme(legend.position = "none")
+        }    
+             
+        list(Boxplot = Tr, ViolinPlot = Tr1)   
+}             
+                
+# --
+
+
+
+
+
+
+# --
+#######################################
+### test_differential_abundance_Wilcoxonsingle ##
+#################
+
+test_differential_abundance_Wilcoxonsingle <- function(physeq, group_var, compare = NULL, excludeZeros = FALSE, p.adjust.method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))){
+        
+        if (taxa_are_rows(physeq)) { 
+                physeq <- t(physeq)
+        }
+        
+        if(! group_var %in% colnames(sample_data(physeq))) {
+                stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
+        }
+        
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        
+        if (!is.null(compare)) {
+                group_var_levels <- compare
+        } else {
+                group_var_levels <- levels(group_fac)
+        }
+        
+        if (length(group_var_levels) != 2) {
+                stop(paste0("compare (group_var_levels) must consist of two groups - you asked for ", 
+                            paste(group_var_levels, collapse = ", ")))
+        }
+        
+        if (!all(group_var_levels %in% levels(group_fac))) {
+                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
+        }
+        
+        
+        CT <- as(otu_table(physeq), "matrix")
+        
+        i <- group_var_levels[1]
+        j <- group_var_levels[2]
+        
+        res_mat <- apply(CT, 2, function(taxon_counts){
+                x <- taxon_counts[group_fac == i]
+                Zeros_grp1 <- sum(x == 0)
+                # # Sparsity_grp1 <- 100*(Zeros_grp1/length(x))
+                Present_grp1 <- length(x)-Zeros_grp1
+                prev_PC_grp1 <- 100*(Present_grp1/length(x))
+                if(excludeZeros){
+                        x <- x[x != 0]
+                }
+                Median_grp1 <- median(x, na.rm = T) # NA in case all 0 and excludeZeros was TRUE
+                Mean_grp1 <- mean(x, na.rm = T) # NaN in case all 0 and excludeZeros was TRUE
+                if (is.na(Mean_grp1)){ Mean_grp1 = NA }
+                
+                y <- taxon_counts[group_fac == j]
+                Zeros_grp2 <- sum(y == 0)
+                Present_grp2 <- length(y)-Zeros_grp2
+                # # Sparsity_grp2 <- 100*(Zeros_grp2/length(y))
+                prev_PC_grp2 <- 100*(Present_grp2/length(y))
+                if(excludeZeros){
+                        y <- y[y != 0]
+                }
+                Median_grp2 <- median(y, na.rm = T)
+                Mean_grp2 <- mean(y, na.rm = T)
+                if (is.na(Mean_grp2)){ Mean_grp2 = NA }
+                
+                if (length(x) != 0 && length(y) != 0){
+                        wilcTest <- wilcox.test(x = x, y = y, alternative = "two", paired = F, exact = F)
+                        pValue <- wilcTest$p.value
+                        W <- wilcTest$statistic
+                        # calculate standardized rank sum Wilcoxon statistics as in multtest::mt.minP
+                        Ranks <- rank(c(x, y))
+                        n1 <- length(x)
+                        n2 <- length(y)
+                        # Wx <- sum(Ranks[1:n1])-(n1*(n1+1)/2) # would be the same as W
+                        # how about the other W?
+                        # Wy <- sum(Ranks[(n1+1):(n1+ n2)]) - (n2*(n2+1)/2)
+                        standStat <- -1*((sum(Ranks[1:n1]) - n1*(n1+n2+1)/2)/sqrt(n1*n2*(n1+n2+1)/12))
+                        
+                        # # if you want to check that multtest::mt.minP would give the same statistic
+                        # mati <- matrix(c(x,y), nrow = 1)
+                        # grFac <- c(rep(fac_levels[i], n1), rep(fac_levels[j], n2))
+                        # grFac <- factor(grFac, levels = c(fac_levels[i], fac_levels[j]))
+                        # standStat2 <- multtest::mt.minP(mati, grFac, test = "wilcoxon")$teststat
+                        # # identical(standStat, standStat2) # TRUE
+                        # uncomment all with standStat2 to test all the way
+                        
+                } else {
+                        pValue = NA
+                        W <- NA
+                        standStat = NA
+                        n1 <- length(x)
+                        n2 <- length(y)
+                        # standStat2 = NA
+                }
+                
+                
+                c(standStat, pValue, Median_grp1, Median_grp2, 
+                  Mean_grp1, Mean_grp2, prev_PC_grp1, prev_PC_grp2, n1, n2, W) 
+        })
+        
+        res_mat <- t(res_mat)
+        
+        DF <- data.frame(Taxon = rownames(res_mat), res_mat)
+        colnames(DF) <- c("Taxon", "teststat", "p_val", "Median_grp1", "Median_grp2", "Mean_grp1", "Mean_grp2", "prev_PC_grp1", "prev_PC_grp2", "n1", "n2", "W")
+        DF$p_val_adj <- p.adjust(DF$p_val, method = p.adjust.method)
+        
+        
+        symnum.args$x <- DF$p_val
+        DF$signi <- do.call(stats::symnum, symnum.args) %>% as.character()
+        symnum.args$x <- DF$p_val_adj
+        DF$signi_adj <- do.call(stats::symnum, symnum.args) %>% as.character()
+        
+        DF$direction <- i
+        DF$direction[DF$teststat > 0] <- j
+        
+        
+        DF <- dplyr::select(DF,  Taxon:p_val, p_val_adj:direction, Median_grp1:W)
+        
+        DF <- cbind(DF, tax_table(physeq))
+        DF <- dplyr::arrange(DF, desc(abs(teststat)))
+        DF
+}
+# --
+
+
+
+
+
+
+# --
+#######################################
+### test_differential_abundance_WilcoxonsingleManiCoin ##
+#################
+
+test_differential_abundance_WilcoxonsingleManiCoin <- function(physeq, group_var, compare = NULL, block = NULL, excludeZeros = FALSE, p.adjust.method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))){
+        
+        if (taxa_are_rows(physeq)) { 
+                physeq <- t(physeq)
+        }
+        
+        if(! group_var %in% colnames(sample_data(physeq))) {
+                stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
+        }
+        
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        
+        if (!is.null(compare)) {
+                group_var_levels <- compare
+        } else {
+                group_var_levels <- levels(group_fac)
+        }
+        
+        if (length(group_var_levels) != 2) {
+                stop(paste0("compare (group_var_levels) must consist of two groups - you asked for ", 
+                            paste(group_var_levels, collapse = ", ")))
+        }
+        
+        if (!all(group_var_levels %in% levels(group_fac))) {
+                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
+        }
+        
+        
+        CT <- as(otu_table(physeq), "matrix")
+        
+        i <- group_var_levels[1]
+        j <- group_var_levels[2]
+        
+        res_mat <- apply(CT, 2, function(taxon_counts){
+                x <- taxon_counts[group_fac == i]
+                Zeros_grp1 <- sum(x == 0)
+                # # Sparsity_grp1 <- 100*(Zeros_grp1/length(x))
+                Present_grp1 <- length(x)-Zeros_grp1
+                prev_PC_grp1 <- 100*(Present_grp1/length(x))
+                
+                if (excludeZeros){
+                        x <- x[x != 0]
+                } 
+                Median_grp1 <- median(x, na.rm = T) # NA in case all 0 and excludeZeros was TRUE
+                Mean_grp1 <- mean(x, na.rm = T) # NaN in case all 0 and excludeZeros was TRUE
+                if (is.na(Mean_grp1)){ Mean_grp1 = NA }
+                
+                y <- taxon_counts[group_fac == j]
+                Zeros_grp2 <- sum(y == 0)
+                Present_grp2 <- length(y)-Zeros_grp2
+                # # Sparsity_grp2 <- 100*(Zeros_grp2/length(y))
+                prev_PC_grp2 <- 100*(Present_grp2/length(y))
+                if(excludeZeros){
+                        y <- y[y != 0]
+                }
+                Median_grp2 <- median(y, na.rm = T)
+                Mean_grp2 <- mean(y, na.rm = T)
+                if (is.na(Mean_grp2)){ Mean_grp2 = NA }
+                
+                data <- cbind(RA = taxon_counts, sample_data(physeq))
+                # make sure level order is as given by compare (group_var_levels)
+                data[[group_var]] <- factor(data[[group_var]], levels = c(group_var_levels, setdiff(levels(group_fac), group_var_levels)), ordered = TRUE)
+                
+                if (excludeZeros){
+                        subset <- group_fac %in% c(i, j) & taxon_counts != 0
+                } else {
+                        subset <- group_fac %in% c(i, j)
+                }
+                
+                
+                formula <- paste0("RA ~ ", group_var)
+                if (!is.null(block)) {
+                        formula <- paste0(formula, " | ", block)
+                }
+                formula <- as.formula(formula)
+                
+                
+                
+                
+                if (length(x) != 0 && length(y) != 0){
+                        wt <- coin::wilcox_test(formula, data = data, subset = subset, 
+                                                conf.int = FALSE, distribution = "asymptotic", 
+                                                alternative = "two.sided")
+                        pValue <- pvalue(wt)
+                        Zz <- statistic(wt)
+                        # calculate standardized rank sum Wilcoxon statistics as in multtest::mt.minP
+                        Ranks <- rank(c(x, y))
+                        n1 <- length(x)
+                        n2 <- length(y)
+                        # Wx <- sum(Ranks[1:n1])-(n1*(n1+1)/2) # would be the same as W
+                        # how about the other W?
+                        # Wy <- sum(Ranks[(n1+1):(n1+ n2)]) - (n2*(n2+1)/2)
+                        standStat <- -1*((sum(Ranks[1:n1]) - n1*(n1+n2+1)/2)/sqrt(n1*n2*(n1+n2+1)/12))
+                        
+                        # # if you want to check that multtest::mt.minP would give the same statistic
+                        # mati <- matrix(c(x,y), nrow = 1)
+                        # grFac <- c(rep(fac_levels[i], n1), rep(fac_levels[j], n2))
+                        # grFac <- factor(grFac, levels = c(fac_levels[i], fac_levels[j]))
+                        # standStat2 <- multtest::mt.minP(mati, grFac, test = "wilcoxon")$teststat
+                        # # identical(standStat, standStat2) # TRUE
+                        # uncomment all with standStat2 to test all the way
+                        
+                } else {
+                        pValue = NA
+                        Zz <- NA
+                        standStat = NA
+                        n1 <- length(x)
+                        n2 <- length(y)
+                        # standStat2 = NA
+                }
+                
+                
+                c(standStat, pValue, Median_grp1, Median_grp2, 
+                  Mean_grp1, Mean_grp2, prev_PC_grp1, prev_PC_grp2, n1, n2, Zz) 
+        })
+        
+        res_mat <- t(res_mat)
+        
+        DF <- data.frame(Taxon = rownames(res_mat), res_mat)
+        colnames(DF) <- c("Taxon", "teststat", "p_val", "Median_grp1", "Median_grp2", "Mean_grp1", "Mean_grp2", "prev_PC_grp1", "prev_PC_grp2", "n1", "n2", "Z")
+        DF$p_val_adj <- p.adjust(DF$p_val, method = p.adjust.method)
+        
+        
+        symnum.args$x <- DF$p_val
+        DF$signi <- do.call(stats::symnum, symnum.args) %>% as.character()
+        symnum.args$x <- DF$p_val_adj
+        DF$signi_adj <- do.call(stats::symnum, symnum.args) %>% as.character()
+        
+        DF$direction <- i
+        DF$direction[DF$teststat > 0] <- j
+        
+        
+        DF <- dplyr::select(DF,  Taxon:p_val, p_val_adj:direction, Median_grp1:Z)
+        
+        DF <- cbind(DF, tax_table(physeq))
+        DF <- dplyr::arrange(DF, desc(abs(teststat)))
+        DF
+}
+
+
+# --
+
+
+
+############# WORK here #########
+
+
+
+
+
+
+
+
+
+
 
 
 

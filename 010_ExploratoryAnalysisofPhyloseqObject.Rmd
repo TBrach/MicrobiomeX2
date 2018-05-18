@@ -23,7 +23,7 @@ ps <- phyloseq::subset_taxa(ps, taxa_sums(ps) != 0)
 Phyla <- check_phyla_distribution(ps)
 ```
 
-- Table \@ref(tab:phyla-before-adjust) shows an overview of the phyla representation in the data set.
+- Table \@ref(tab:phyla-before-adjust) shows an overview of the phyla representation in the data set ordered by counts > taxa > prevalence. So the most abundant phylum with most taxa and most prevalence is on top.
     - PC_of_counts is basically the relative abundance of the phylum in the entrie data set.
     - PC_of_prevalence is the percentage of non zero counts that belong to the phylum
     - mean/median_taxa_sum are the mean/median of the taxa_sums (total counts over all samples) of the taxa in the respective phylum.
@@ -37,6 +37,13 @@ knitr::kable(Phyla, caption = "Phyla Distribution")
 - **Write your conclusion here:** *e.g.: most taxa belong to Firmicutes but the Bacteroidetes taxa have on average higher taxa_sums (counts over all samples). The average Firmicutes taxon is present in ca 25% of the samples.*
 
 
+- Define here the Phyla colors
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+phylum_colors <- make_color_vector(as.character(Phyla$Phylum), QuantColors15)
+```
+
+
 
 ## Assignment distribution of taxa
 
@@ -45,7 +52,7 @@ knitr::kable(Phyla, caption = "Phyla Distribution")
 assignment_distribution <- get_assignemnt_distribution(ps)
 ```
 
-We checked how well the taxa in the abundance table have been annotated at the different levels. Table \@ref(tab:tax-completion) shows the results.
+We checked how well the taxa in the abundance table have been annotated at the different taxonomic levels. Table \@ref(tab:tax-completion) shows the results.
 
 ```{r tax-completion, echo = FALSE, message=FALSE}
 knitr::kable(assignment_distribution, caption = "Taxonomic annotation statistics of OTUs")
@@ -95,7 +102,7 @@ if (phylum_NA_removal == "yes"){
 - NB: plots are again based on raw counts, i.e. total counts (taxa_sums) were calculated over samples without sample size adjustment. 
 
 ```{r, echo = FALSE, message=FALSE}
-TrrList <- plot_correlations_abundance_prev_sparsity(physeq = ps, col = "Phylum")
+TrrList <- plot_correlations_abundance_prev_sparsity(physeq = ps, col = "Phylum", col_vec = phylum_colors)
 ```
 
 ```{r, fig.width = 14, fig.height = 7, warning = FALSE, message = FALSE, echo = FALSE}
@@ -103,7 +110,7 @@ grid.arrange(TrrList[[3]], TrrList[[4]], ncol = 2)
 ```
 
 
-- **Write your conclusion here:** *e.g.: Of course taxa with higher total counts have usualyy higher prevalence. But, interestingly, often the mean count in the non-zero samples is not strongly associated with prevalence. That means the fact that a taxon grows to higher abundance when it is present does not make it more likely to be present in many samples*
+- **Write your conclusion here:** *e.g.: Of course taxa with higher total counts have usualy higher prevalence. But, interestingly, often the mean count in the non-zero samples is not strongly associated with prevalence. That means the fact that a taxon grows to higher abundance when it is present does not make it more likely to be present in many samples*
 
 
 
@@ -149,8 +156,7 @@ grid.arrange(TrList[[1]], TrList[[2]], TrList[[3]] + scale_y_log10(), TrList[[4]
 
 
 
-### Check whether sample_sums/sample sizes differ between groups
-
+### Check whether sample_sums/sample sizes/library sizes differ between groups
 
 
 ```{r, message = FALSE, warning = FALSE, echo = FALSE}

@@ -97,13 +97,6 @@ library(grid)
 # library(microbiomeX)
 # --
 
-# - define cbPalette and QuantColors15 schemes -
-# R color blind palette is used for group comparisons (unless more than 8 groups)
-cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") # ref: http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/
-# QuantColors15 is used for phyla comparisons as long as there are < 15 phyla, each color is easy to distinguish from the two colors surrounding it
-tol15rainbow=c("#114477", "#4477AA", "#77AADD", "#117755", "#44AA88", "#99CCBB", "#777711", "#AAAA44", "#DDDD77", "#771111", "#AA4444", "#DD7777", "#771144", "#AA4477", "#DD77AA") # ref: https://tradeblotter.wordpress.com/2013/02/28/the-paul-tol-21-color-salute/
-QuantColors15 <- tol15rainbow[c(1, 12, 4, 7, 13, 2, 11, 5, 8, 14, 3, 10, 6, 9, 15)]
-# --
 ```
 
 
@@ -121,13 +114,14 @@ source(file.path(functionpath, "010_explore_ps_functions.R"))
 source(file.path(functionpath, "020_preprocess_filtering_functions.R"))
 source(file.path(functionpath, "030_alpha_diversity_functions.R"))
 source(file.path(functionpath, "040_beta_diversity_functions.R"))
-source(file.path(functionpath, "050_diff_abundance_functions.R"))
+#source(file.path(functionpath, "050_diff_abundance_functions.R"))
 source(file.path(functionpath, "060_phylum_analysis_functions.R"))
 source(file.path(functionpath, "n_050_diff_abundance_functions.R"))
 
 # - load your phyloseq object - 
 # NB: USER INPUT
-name_phyloseq_rds <- "physeq_Men.rds"
+# name_phyloseq_rds <- "physeq_Men.rds"
+name_phyloseq_rds <- "physeq_Men_Hol.rds"
 # NB: USER INPUT
 datapath <- "./Example_phyloseq_objects"
 
@@ -137,6 +131,7 @@ if(! file.exists(file.path(datapath, name_phyloseq_rds))){
 }
 
 ps <- readRDS(file.path(datapath, name_phyloseq_rds))
+
 # --
 
 # - Define the group variable for sample comparisons -
@@ -151,7 +146,8 @@ if(! group_var %in% colnames(sample_data(ps))) {
 
 # - Define the two levels in your group_var that you want to compare -
 # NB: USER INPUT
-group_var_levels <- c("DK", "IN") # defines the order of the groups in all plots. If set to NULL:
+group_var_levels <- c("IN", "DK") # defines the order of the groups in all plots. If set to NULL:
+
 if (is.null(group_var_levels)) { 
         group_var_levels <- unique(sample_data(ps)[[group_var]])
 }
@@ -271,12 +267,12 @@ if (!is.numeric(rare_max_total)) {
 # --
 
 # - beta diversity inputs -
-dist_methods <- c("jsd") # otions: see unlist(phyloseq::distanceMethodList)
+dist_methods <- c("bray") # otions: see unlist(phyloseq::distanceMethodList)
 coord_cor <- FALSE # adjustment of the axis representation in ordination plots
 
 # Test beta diversity inputs and set invalid inputs to defaults
 if (! all(dist_methods %in% unlist(phyloseq::distanceMethodList))) {
-       dist_methods <- c("jsd")
+       dist_methods <- c("bray")
 }
 
 if (! is.logical(coord_cor)){

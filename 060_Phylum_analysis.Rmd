@@ -1,0 +1,94 @@
+# Analyses at phylum level
+
+- this extra analysis uses the unfiltered phyloseq object
+
+## Phylum relative abundance barplots of the samples
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+if (taxonomic_level != "Phylum"){
+        ps <- phyloseq::tax_glom(ps, taxrank = "Phylum", NArm = FALSE)
+        taxonomic_level <- "Phylum"
+}
+
+ps_ra <- phyloseq::transform_sample_counts(ps, function(x){x/sum(x)})
+
+
+bar_plot_ps_ra <- plot_sample_bars(physeq = ps_ra, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, fill = "Phylum", color_sample_names = TRUE, col_vec = phylum_colors, facet_grid = NULL)
+```
+
+- a plot showing the relative abundance of the phyla
+
+```{r, fig.width = 14, fig.height = 7, warning = FALSE, message = FALSE, echo = FALSE}
+bar_plot_ps_ra
+```
+
+- **Write your conclusion here:** *e.g.: often a few samples look very weird, or Firmicutes Bacteroidetes difference is clear*
+
+
+
+## Firmicutes to other phyla ratios
+
+- *independent of library size adjustment and compositionality*
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# - choose the physeq object to run the test on -
+physeq_to_test <- ps
+# --
+
+
+taxa_annotation <- get_taxon_names(as.data.frame(tax_table(ps)))
+
+
+# - plot Firmicutes to all other phyla ratio plots NB: you could change taxa_den to maybe only Bacteroidetes -
+FirmicutesRatioPlots <- plot_taxa_ratiosSingle(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, tax_names = taxa_annotation, taxa_nom = "Firmicutes", taxa_den = NULL, tax_order = names(phylum_colors), test = "wilcox.test", p_adjust_method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
+# --
+```
+
+- NB: the plot only shows taxa for which statistical test (t or wilcoxon) was possible, and only samples for which both taxa were present!
+- **NB: the plot shows the logged ratios, the analysis was also done on non-logged ratios, in case of wilcoxon significance is the same**
+
+
+```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE, echo = FALSE}
+FirmicutesRatioPlots[[6]] # in this version I plot the boxplot again the logged ones
+```
+
+- the p-vals for the ratios
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+FirmicutesRatioPlots[["pValsLog"]] 
+```
+
+
+- **Write your conclusion here:** *e.g.: The Firmicutes to Proteobacteria seems enriched.*
+
+
+
+## Tile plot comparing all phyla against each other
+
+- Basically performs ratio **wilcoxon test** for *all phyla combinations*. 
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# - choose the physeq object to run the test on -
+physeq_to_test <- ps
+# --
+
+# - calculate ratio matrixes  -
+raw_TbTmatrixes <- calculate_raw_TbTmatrixesSingle(physeq = physeq_to_test, group_var = group_var, compare = group_var_levels)
+# raw_TbTmatrixes <- lapply(raw_TbTmatrixes, log10)
+taxa_annotation <- get_taxon_names(as.data.frame(tax_table(ps)))
+# --
+
+
+TbT_tile <- create_raw_TbT_TilePlotsSingle(raw_TbTmatrixes, physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, signi_level = 0.05, tax_names = taxa_annotation, tax_order = names(phylum_colors), test = "wilcoxon", p_adjust_method = "none")
+```
+
+
+**NB: When colored in a level, the ratio row/column is higher in that level compared to the other level**
+
+```{r, fig.width = 8, fig.height = 8, warning = FALSE, message = FALSE, echo = FALSE}
+TbT_tile
+```
+
+- **Write your conclusion here:** *e.g.: very few ratios differ. See that the table is symmetrical, it should be.*
+
+
