@@ -192,6 +192,8 @@ grid.arrange(rarefaction_curves[["Tr_richness_col"]], rarefaction_curves[["Tr_ri
 
 ```{r, message = FALSE, warning = FALSE, echo = FALSE}
 breakawayResults <- calc_breakaway_from_phyloseq(ps, group_var, color_levels)
+# NB: in case breakaway used Chao-Bunge, it seems the estimate is the number of the missing taxa and not the observed estimate. To correct for this:
+breakawayResults$est[breakawayResults$est < breakawayResults$observed] <- breakawayResults$observed[breakawayResults$est < breakawayResults$observed] + breakawayResults$est[breakawayResults$est < breakawayResults$observed]
 resultList <- analyse_breakaway_results(breakawayResults, group_var, color_levels, test = "t.test")
 breakawayTr <- resultList[[2]]
 breakawayDF <- resultList[[1]][[1]]

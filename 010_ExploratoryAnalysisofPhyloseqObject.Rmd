@@ -6,6 +6,8 @@
 
 ## Removal of taxa that are not present in a single sample
 
+**NB: all samples are considered, i.e. also samples that are not part of group_var_levels, i.e. taxa could remain that are only present in samples not covered by group_var_levels. If you do not want this, you have to upload a phyloseq that only contains samples covered by group_var_levels.**
+
 ```{r, echo = FALSE, message=FALSE}
 # - remove taxa with Phylum == NA -
 ps <- phyloseq::subset_taxa(ps, taxa_sums(ps) != 0) 
@@ -104,20 +106,38 @@ phylum_colors <- make_color_vector(as.character(Phyla$Phylum), QuantColors15)
 
 
 
-### Visualise the effect of the size factor adjustment
+### Visualise the effect of the size factor adjustment and the size factors
 
 - the plot shows the count distribution of the samples before and after size factor adjustment.
-- *NB: the plot can take time, but I think it is useful (it takes more time the more taxa you have, so tax_glom to phylum would speed it up). In this plot only the samples included in group_var_levels are shown, but remember size factors were calculated based on all samples!*
+- *NB: In this plot only the samples included in group_var_levels are shown, but remember size factors were calculated based on all samples!*
 
 ```{r, echo = FALSE, message=FALSE}
 # - generate barplot representations of counts before and after total count adjustment - 
-bar_plot_ps_vs_ps_tca <- plot_sample_bars_compare(physeq = ps, physeq2 = ps_tca, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, color_sample_names = TRUE, fill = "Phylum", col_vec = phylum_colors)
+# I noticed that the following function is much faster when first doing taxglom, so I believe these tax_gloms can sepped up the run but are of course not necessary
+psP <- phyloseq::tax_glom(ps, taxrank = "Phylum", NArm = FALSE)
+ps_tcaP <- phyloseq::tax_glom(ps_tca, taxrank = "Phylum", NArm = FALSE)
+bar_plot_ps_vs_ps_tca <- plot_sample_bars_compare(physeq = psP, physeq2 = ps_tcaP, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, color_sample_names = TRUE, fill = "Phylum", col_vec = phylum_colors)
+rm(psP, ps_tcaP)
+# --
+
+# - visualise the size factors - 
+# NB: plot_sizeFactors removes samples that are not in color_levels!
+SFList <- plot_sizeFactors(physeq = ps,SFs = SFs, group_var = group_var, color_levels = color_levels, shape = shape)
 # --
 ```
 
 ```{r, fig.width = 14, fig.height = 14, warning = FALSE, message = FALSE, echo = FALSE}
 bar_plot_ps_vs_ps_tca
 ```
+
+- the following plots show the distribution of the size factors between the groups and how they correlate with sample size/library size.
+- again: only samples in group_var_levels are shown
+
+```{r, fig.width = 14, fig.height = 6, warning = FALSE, message = FALSE, echo = FALSE}
+grid.arrange(SFList[[2]], SFList[[3]], ncol = 2)
+```
+
+- **Write your conclusion here:** *e.g.: size factors should be around 1 and correlate a bit with sample_sums().*
 
 
 

@@ -124,6 +124,7 @@ functionpath <- "./Functions"
 source(file.path(functionpath, "_n_000_helper_functions.R"))
 source(file.path(functionpath, "_n_010_explore_ps_functions.R"))
 source(file.path(functionpath, "_n_020_alpha_diversity_functions.R"))
+source(file.path(functionpath, "_n_030_preprocess_filtering_functions.R"))
 # source(file.path(functionpath, "040_beta_diversity_functions.R"))
 # #source(file.path(functionpath, "050_diff_abundance_functions.R"))
 # source(file.path(functionpath, "060_phylum_analysis_functions.R"))
@@ -210,7 +211,7 @@ if (!is.null(shape)) {
 # phyloseq::taxglom will be used to adjust the phyloseq object to the chosen taxonomic_level.
 # if you set taxonomic_level to NULL, all taxa will be analysed (i.e. strain/species/ASV level analysis)
 # NB user input
-taxonomic_level <- NULL
+taxonomic_level <- "Species"
 # NB user input
 phylum_NA_removal <- "no" # if yes you remove all taxa for which Phylum = NA before the analyses
 

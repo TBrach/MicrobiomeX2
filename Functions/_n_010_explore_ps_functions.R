@@ -263,6 +263,72 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
 
 
 
+# --
+#######################################
+### plot_sizeFactors
+#######################################
+# just to check if size factors differ between groups and how they are related with original sample sizes
+
+plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, test = "t.test", p_adjust_method = "fdr",
+                             symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")),
+                             hide.ns = FALSE){
+        
+        
+        # in case you do not want to see all samples
+        if (!all(unique(sample_data(physeq)[[group_var]]) %in% names(color_levels))) {
+                keepSamples <- sample_names(physeq)[sample_data(physeq)[[group_var]] %in% names(color_levels)]
+                physeq <- prune_samples(samples = keepSamples, physeq)
+                sample_data(physeq)[[group_var]] <- factor(sample_data(physeq)[[group_var]], levels = names(color_levels), order = TRUE)
+                SFs <- SFs[names(SFs) %in% keepSamples]
+        }
+        
+        DF <- cbind(sample_data(physeq), SF = SFs)
+        
+        Tr <-  ggplot(DF, aes_string(x = group_var, y = "SF", color = group_var)) 
+        Tr <- Tr + 
+                geom_boxplot(outlier.color = NA) +
+                geom_jitter(aes_string(shape = shape), width = .2, height = 0, alpha = 0.65) +
+                xlab("") +
+                ylab("size factor") +
+                scale_color_manual("", values = color_levels) +
+                theme_bw()
+        if(is.null(shape)){
+                Tr <- Tr + theme(legend.position = "none")
+        }
+        
+        # - since you might have more than two levels in each plot you need to set the comparisons argument in stat_compare_means -
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        fac_levels <- levels(group_fac)
+        
+        comparisonList <- get_unique_facLevel_combinations(fac_levels)
+        
+        Tr <- Tr + ggpubr::stat_compare_means(comparisons = comparisonList, label = "p.signif", method = test, hide.ns = hide.ns)
+        
+        formulaa <- as.formula(paste("SF ~", group_var, sep = " "))
+        
+        pVals <- compare_means(formula = formulaa, data = DF, method = test, p.adjust.method = p_adjust_method, symnum.args = symnum.args)
+        
+        # - Add total_counts vs SFs plot -
+        DF$total_count <- sample_sums(physeq)
+        Tr1 <-  ggplot(DF, aes_string(x = "total_count", y = "SF", color = group_var)) 
+        Tr1 <- Tr1 + 
+                geom_point(aes_string(shape = shape), alpha = 0.65) +
+                xlab("sample_sums()") +
+                ylab("size factor") +
+                scale_color_manual("", values = color_levels) +
+                theme_bw()
+        if(is.null(shape)){
+                Tr1 <- Tr1 + theme(legend.position = "none")
+        }
+        
+        
+        
+        list(pVals = pVals, Tr = Tr, Tr1 = Tr1)
+}
+# --
+
+
+
 
 # --
 #######################################
