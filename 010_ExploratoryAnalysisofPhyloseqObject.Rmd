@@ -1,4 +1,4 @@
-# Exploratory analysis of phyloseq object: 
+# Exploratory analysis of the phyloseq object: 
 
 - there are `r ntaxa(ps)` taxa and `r nsamples(ps)` samples in the loaded phyloseq object
 
@@ -6,125 +6,51 @@
 
 ## Removal of taxa that are not present in a single sample
 
-
 ```{r, echo = FALSE, message=FALSE}
 # - remove taxa with Phylum == NA -
 ps <- phyloseq::subset_taxa(ps, taxa_sums(ps) != 0) 
 # --
+taxa_before <- ntaxa(ps)
 ```
 
 - there are `r ntaxa(ps)` taxa and `r nsamples(ps)` samples in the phyloseq object after removal of taxa that were not present in a single sample
 
 
 
-## Tabular overview of phyla distribution based on raw counts
-
-```{r, echo = FALSE, message=FALSE}
-Phyla <- check_phyla_distribution(ps)
-```
-
-- Table \@ref(tab:phyla-before-adjust) shows an overview of the phyla representation in the data set ordered by counts > taxa > prevalence. So the most abundant phylum with most taxa and most prevalence is on top.
-    - PC_of_counts is basically the relative abundance of the phylum in the entrie data set.
-    - PC_of_prevalence is the percentage of non zero counts that belong to the phylum
-    - mean/median_taxa_sum are the mean/median of the taxa_sums (total counts over all samples) of the taxa in the respective phylum.
-    - *NB: There was no adjustment of sample sizes yet, so PC_of_counts, median_taxa_sum, and mean_taxa_sum were calculated based on the unadjusted raw counts in the phyloseq object.*
-    
-    
-```{r phyla-before-adjust, echo = FALSE, message=FALSE}
-knitr::kable(Phyla, caption = "Phyla Distribution")
-```
-
-- **Write your conclusion here:** *e.g.: most taxa belong to Firmicutes but the Bacteroidetes taxa have on average higher taxa_sums (counts over all samples). The average Firmicutes taxon is present in ca 25% of the samples.*
-
-
-- Define here the Phyla colors
-
-```{r, warning = FALSE, message = FALSE, echo = FALSE}
-phylum_colors <- make_color_vector(as.character(Phyla$Phylum), QuantColors15)
-```
-
-
-
-## Assignment distribution of taxa
-
-
-```{r, echo = FALSE, message=FALSE}
-assignment_distribution <- get_assignemnt_distribution(ps)
-```
-
-We checked how well the taxa in the abundance table have been annotated at the different taxonomic levels. Table \@ref(tab:tax-completion) shows the results.
-
-```{r tax-completion, echo = FALSE, message=FALSE}
-knitr::kable(assignment_distribution, caption = "Taxonomic annotation statistics of OTUs")
-rm(assignment_distribution)
-```
-
-- **Write your conclusion here:** *e.g.: Until the `Order` level, there is quite a good annotation. However, only half the taxa are annotated at `Genus` level, and only 16% are annotated at `Species` level.*  
-
-
-
-### Is the taxonomic assignment better for more abundant/pevalent taxa?
-
-- Again NB for the interpretation of the following plots: the abundance filters on the taxa are based on total counts over all samples (taxa_sums), and the abundances have not been corrected for sample sizes (library sizes) yet.
-
-```{r, echo = FALSE, message=FALSE}
-assign_vs_ab <- check_assignment_vs_abundance(ps)
-
-assign_vs_prev <- check_assignment_vs_prevalence(ps)
-```
-
-```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE, echo = FALSE}
-grid.arrange(assign_vs_prev[[2]], assign_vs_ab[[2]], nrow = 2)
-```
-
-- **Write your conclusion here:** *e.g.: not really here, there is if at all only a mild trend that the more abundant and more prevalent taxa are more often assigned to species level* 
-
-
-
-## Removal of taxa that were not assigned to a phylum 
+## Removal of taxa that were not assigned to phylum level (if chosen) 
 
 - *NB: only if you chose "yes" for "phylum_NA_removal", your choice was: `r phylum_NA_removal`*
 
 ```{r, echo = FALSE, message=FALSE}
 # - remove taxa with Phylum == NA -
 if (phylum_NA_removal == "yes"){
-        ps <- phyloseq::subset_taxa(ps, !is.na(Phylum)) 
+        ps <- phyloseq::subset_taxa(ps, !is.na(Phylum))
 }
 # --
 ```
 
-- *`r sum(Phyla$taxa) - ntaxa(ps)` taxa were removed, leaving `r ntaxa(ps)` taxa.*
+- *`r taxa_before - ntaxa(ps)` taxa were removed, leaving `r ntaxa(ps)` taxa.*
 
 
 
-## Abundance and prevalence distributions of the `r ntaxa(ps)` taxa in `r nsamples(ps)` samples
+## Calculate Size Factors for sample/library size adjustment
 
-- NB: plots are again based on raw counts, i.e. total counts (taxa_sums) were calculated over samples without sample size adjustment. 
-
-```{r, echo = FALSE, message=FALSE}
-TrrList <- plot_correlations_abundance_prev_sparsity(physeq = ps, col = "Phylum", col_vec = phylum_colors)
-```
-
-```{r, fig.width = 14, fig.height = 7, warning = FALSE, message = FALSE, echo = FALSE}
-grid.arrange(TrrList[[3]], TrrList[[4]], ncol = 2)
-```
-
-
-- **Write your conclusion here:** *e.g.: Of course taxa with higher total counts have usualy higher prevalence. But, interestingly, often the mean count in the non-zero samples is not strongly associated with prevalence. That means the fact that a taxon grows to higher abundance when it is present does not make it more likely to be present in many samples*
-
-
-
-## Perform tax_glom to the chosen taxonomic_level, which is: `r if (is.null(taxonomic_level)) {"all taxa"} else {taxonomic_level}`
-
-- *NB: also the size factors for the subsequent total count adjustment (a la DESeq2) are calculated here based on all taxa in the phyloseq object. This is because size factors are less reliable when calculated on less taxa, since they are based on a median ratio calculation*
-
-- `r ntaxa(ps)` are there before the tax_glom
+- **NB: The SizeFactors are calculated using all samples in the phyloseq object, also those not covered by group_var_levels! If you do not want this you need to upload a phyloseq object only containing samples covered by group_var_levels**
+- *NB2: The size factors for the subsequent total count adjustment (a la DESeq2) are calculated here based on all taxa in the phyloseq object, i.e. independent of the chosen taxonomic_level they are calculated at ASV level. This is because I think that size factors are less reliable when calculated on less taxa, since they are based on a median ratio calculation. One might argue that species level could be best or even genus level, if you think so change the code here.* 
 
 ```{r, echo = FALSE, message=FALSE}
 # - caluclation of Size Factors -
 SFs <- calc_SFs(physeq = ps)
 # --
+```
 
+
+
+## Perform tax_glom to the chosen taxonomic_level, which is: `r if (is.null(taxonomic_level)) {"strain level/all taxa"} else {taxonomic_level}`
+
+- `r ntaxa(ps)` taxa are there before the tax_glom
+
+```{r, echo = FALSE, message=FALSE}
 # - perform tax_glom -
 if (!is.null(taxonomic_level)){
         ps <- phyloseq::tax_glom(ps, taxrank = taxonomic_level, NArm = FALSE)
@@ -134,15 +60,128 @@ if (!is.null(taxonomic_level)){
 # -- 
 ```
 
-- **`r ntaxa(ps)` remain after the tax_glom**
+- **`r ntaxa(ps)` taxa are in the phyloseq object after the tax_glom**
+
+
+## Generate a sample/library size adjusted phyloseq object
+
+```{r, echo = FALSE, message=FALSE}
+# - generate library_size adjusted ps object -
+library_size_adjust_list <- simply_adjust_LS(ps, SFs = SFs) 
+ps_tca <- library_size_adjust_list[[1]]
+# --
+```
 
 
 
-### Prevalence and abundance distributions of the`r ntaxa(ps)` taxa after tax_glom in relation to the chosen prevalence that is later used for filtering
+## Tabular overview of phyla distribution based on size adjusted counts
+
+```{r, echo = FALSE, message=FALSE}
+Phyla <- check_phyla_distribution(ps_tca)
+```
+
+- Table \@ref(tab:phyla-before-adjust) shows an overview of the phyla representation in the data set ordered by counts > taxa > prevalence. So the most abundant phylum with most taxa (= `r{taxonomic_level}`) and most prevalence is on top.
+    - PC_of_counts is basically the relative abundance of the phylum in the entire data set.
+    - PC_of_prevalence is the percentage of non zero counts that belong to the phylum
+    - mean/median_taxa_sum are the mean/median of the taxa_sums (total counts over all samples) of the taxa in the respective phylum.
+    - *NB: This overview is based on all samples in your phyloseq object! In case your phyloseq object contains more samples than covered by group_var_levels, these samples are also included in this overview. If you do not want this, upload a phyloseq object that only contains the samples covered by group_var_levels.*
+    - *NB2: The table is based on size adjusted counts. Use ps instead of ps_tca if you want PC_of_counts, median_taxa_sum, and mean_taxa_sum based on unadjusted raw counts*
+    - *NB3: the phylum colors in all subsequent plots are defined based on this table*
+    
+    
+```{r phyla-before-adjust, echo = FALSE, message=FALSE}
+knitr::kable(Phyla, caption = "Phyla Distribution")
+```
+
+- **Write your conclusion here:** *e.g.: most taxa belong to Firmicutes but the Bacteroidetes taxa have on average higher taxa_sums (counts over all samples). The average Firmicutes taxon is present in ca 25% of the samples.*
+
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# - Define here phylum colors for later plots based on the phyla distribution
+phylum_colors <- make_color_vector(as.character(Phyla$Phylum), QuantColors15)
+```
+
+
+
+### Visualise the effect of the size factor adjustment
+
+- the plot shows the count distribution of the samples before and after size factor adjustment.
+- *NB: the plot can take time, but I think it is useful (it takes more time the more taxa you have, so tax_glom to phylum would speed it up). In this plot only the samples included in group_var_levels are shown, but remember size factors were calculated based on all samples!*
+
+```{r, echo = FALSE, message=FALSE}
+# - generate barplot representations of counts before and after total count adjustment - 
+bar_plot_ps_vs_ps_tca <- plot_sample_bars_compare(physeq = ps, physeq2 = ps_tca, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, color_sample_names = TRUE, fill = "Phylum", col_vec = phylum_colors)
+# --
+```
+
+```{r, fig.width = 14, fig.height = 14, warning = FALSE, message = FALSE, echo = FALSE}
+bar_plot_ps_vs_ps_tca
+```
+
+
+
+## Assignment distribution of taxa
+
+- *NB: Also here it is relevant that all samples in your phyloseq object are considered (since taxa that were not present in a single sample were removed). So if you want to get rid of taxa that are only present in samples not covered by group_var_levels, you have to upload a phyloseq object only containing the group_var_levels samples.*
 
 
 ```{r, echo = FALSE, message=FALSE}
-TrList <- plot_ab_pev_distributions(ps, prevalence = prevalence)
+assignment_distribution <- get_assignemnt_distribution(ps)
+```
+
+We checked how well the taxa in the abundance table have been annotated at the different taxonomic levels, down to the chosen taxononic level which is: `r{taxonomic_level}`. Table \@ref(tab:tax-completion) shows the results.
+
+
+```{r tax-completion, echo = FALSE, message=FALSE}
+knitr::kable(assignment_distribution, caption = "Taxonomic annotation statistics of OTUs")
+rm(assignment_distribution)
+```
+
+- **Write your conclusion here:** *e.g.: Until the `Order` level, there is quite a good annotation. However, only half the taxa are annotated at `Genus` level, and only 16% are annotated at `ASV` level.*  
+
+
+
+### Is the taxonomic assignment better for more abundant/pevalent taxa?
+
+- Since the abundance filters on the taxa are based on total counts over all samples (taxa_sums), I use the size adjusted counts here.
+
+```{r, echo = FALSE, message=FALSE}
+assign_vs_ab <- check_assignment_vs_abundance(ps_tca)
+
+assign_vs_prev <- check_assignment_vs_prevalence(ps_tca)
+```
+
+```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE, echo = FALSE}
+grid.arrange(assign_vs_prev[[2]], assign_vs_ab[[2]], nrow = 2)
+```
+
+- **Write your conclusion here:** *e.g.: not really here, there is if at all only a mild trend that the more abundant and more prevalent taxa are more often assigned to the chosen taxonomic level of this analysis, which is `r{taxonomic_level}`* 
+
+
+
+## Abundance and prevalence distributions of the `r ntaxa(ps)` taxa in `r nsamples(ps)` samples
+
+- NB: also these plots are based on size adjusted counts, change to ps instead of ps_tca if you do not want this 
+
+```{r, echo = FALSE, message=FALSE}
+TrrList <- plot_correlations_abundance_prev_sparsity(physeq = ps_tca, col = "Phylum", col_vec = phylum_colors)
+```
+
+```{r, fig.width = 14, fig.height = 7, warning = FALSE, message = FALSE, echo = FALSE}
+grid.arrange(TrrList[[3]], TrrList[[4]], ncol = 2)
+```
+
+
+- **Write your conclusion here:** *e.g.: Of course taxa with higher total counts have usualy higher prevalence. But, interestingly, often the mean count in the non-zero samples is not strongly associated with prevalence for strains/ASVs. That means the fact that a strain grows to higher abundance when it is present does not make it more likely to be present in many samples. However, the trend seems to become more clear for higher taxonomic levels.*
+
+
+
+### Prevalence and abundance distributions of the `r ntaxa(ps)` in relation to the chosen prevalence that is later used for filtering
+
+
+```{r, echo = FALSE, message=FALSE}
+TrList <- plot_ab_pev_distributions(ps_tca, prevalence = prevalence)
 ```
 
 
@@ -150,26 +189,11 @@ TrList <- plot_ab_pev_distributions(ps, prevalence = prevalence)
 grid.arrange(TrList[[1]], TrList[[2]], TrList[[3]] + scale_y_log10(), TrList[[4]], nrow = 4)
 ```
 
-- *NB: again, while prevalence is independent of sample size adjustments, the total counts are not, and also these plots were still based on raw counts*
+- *NB: prevalence is independent of sample size adjustments, total counts are not. These plots were again based on size adjusted counts*
 
 - **Write your conclusion here:** *e.g.: The plots usually illustrate that removing a lot of low prevalence taxa does not necessarily remove a lot of counts.*
 
 
-
-### Check whether sample_sums/sample sizes/library sizes differ between groups
-
-
-```{r, message = FALSE, warning = FALSE, echo = FALSE}
-SampleSumList <- boxplot_sampleSums(physeq = ps, group_var = group_var, color_levels = color_levels, shape = shape, test = "t.test", p_adjust_method = "fdr",
-                                    symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
-```
-
-```{r, fig.width = 7, fig.height = 5, warning = FALSE, message = FALSE, echo = FALSE}
-SampleSumList[["Tr"]]
-```
-
-
-- **Write your conclusion here:** *e.g.: no significant differences in the sample_sums between the groups.*
 
 
 

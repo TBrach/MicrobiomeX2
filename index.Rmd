@@ -39,15 +39,29 @@ To perform the analysis with your own data, or to recapitulate this example anal
     - make sure that all packages under **Load packages (and color schemes)** are installed and up to date.
     - you need a prepared phyloseq object, saved as **.rds** file on your computer (saveRDS command) (best in the project folder). Just like the one in Example_phyloseq_objects. Info: <https://joey711.github.io/phyloseq/import-data.html>
 - What then?
-    - Adjust the input parameters for the analysis under **Load phyloseq object and set input**. I hope most input is self-explanatory in particular with the annotation given in the section. In this section: all lines where user input is required or possible are marked with **NB: USER INPUT** and **NB: user input**, respectively
-       - NB: In the section: **Load phyloseq object and set input**, I intentionally put the input tests directly after the input is given. That way it takes longer to write the input. I did so, because I think it is a good idea to go once through the entire section for each analysis. It helps in understanding the input and discovering potential problems.
+    - Adjust the input parameters for the analysis under **Load phyloseq object and set input**. I hope most input variables are self-explanatory in particular with the annotation given in the section. As a help: all lines where user input is required or possible are marked with **NB: USER INPUT** and **NB: user input**, respectively
+       - NB: In the section: **Load phyloseq object and set input**, I intentionally put the input tests directly after the input is given. That way it takes longer to write the input. I did so anyway, because I think it is a good idea to go once through the entire section for each analysis. It helps in understanding the input and discovering potential problems.
 - How to run it?
     - When you are certain about the input, you build the document in Rstudio with bookdown. You do so under Build >> Build All. Or by using the Build tab >> Build Book. This will run the entire analysis and produce the output document.
         - By default I use bookdown::html_document2, so an html file **_main.html (look at it in your browser)** is created.
         - You can change the output to pdf or gitbook by setting the output: on top of the document to bookdown::pdf_book or bookdown::gitbook, respectively. However, wide tables that are wider than the page size are currently only fully visible in html.
 
 
-*NB: The project leading to this application has received funding from the European Union's Horizon 2020 research and innovation programme under the Marie Sklodowska-Curie grant agreement No 707300.*  
+*NB: The project leading to this application has received funding from the European Union's Horizon 2020 research and innovation programme under the Marie Sklodowska-Curie grant agreement No 707300.* 
+
+
+## Some specifics of this pipeline
+
+- This is a basic pipeline that can be extented to more complicated scenarios. **This basic pipeline only allows the comparison of TWO groups**! I.e. it compares the microbiome samples of one group to the samples of another group. It can be extended to more groups by loops, see: *example in progress*.
+- The two groups must be defined in a group variable (*group_var*) in the sample_data of the phyloseq object. NB: The *group_var* may contain more groups, but you have to define the two groups you want to compare with *group_var_levels*.
+- The colors representing the two groups are defined by the user in *color_levels*.
+- another variable can be used as *shape* in some plots, but it does not affect statistical tests of the two groups.
+- the user further defines the *taxonomic_level* at which the analysis will be performed. The phyloseq object will be adjusted to the chosen level with the phyloseq::taxglom command.
+- **Describe the filtering inputs:** *prevalence*, *min_obs*, *taxa_sums_quantile*. Where is filtering used??
+
+
+
+
 
 ## Load packages (and color schemes)
 
@@ -56,7 +70,7 @@ To perform the analysis with your own data, or to recapitulate this example anal
 ```{r, echo = FALSE, message=FALSE, include = FALSE}
 # - install packages -
 # NB: all packages have to be installed, usually via install.packages()
-# but some you need to install via bioconductor, e.g.:
+# some packages you need to install via bioconductor, e.g.:
 # source("https://bioconductor.org/biocLite.R")
 # biocLite("phyloseq")
 # --
@@ -79,20 +93,18 @@ library(ggpubr); # packageVersion("ggpubr")
 library(RColorBrewer)
 library(pheatmap)
 library(grid)
+library(breakaway)
+library(bookdown)
 
-
-# - packaged from Mani's analysis that I could add -
+# - packaged from Mani's analysis that I could add if needed-
 # library(cowplot)
 # library(coin)
 # library(ade4)
 # library(ggrepel)
 # library(ggforce)
-# library(bookdown)
 # library(kableExtra)
-# library(RColorBrewer)
 # library(bindrcpp)
 # library(stringr)
-# library(pheatmap)
 # library(BiocParallel)
 # library(microbiomeX)
 # --
@@ -109,14 +121,13 @@ library(grid)
 ```{r, echo = FALSE, message=FALSE}
 # - source all functions -
 functionpath <- "./Functions"
-source(file.path(functionpath, "000_helper_functions.R"))
-source(file.path(functionpath, "010_explore_ps_functions.R"))
-source(file.path(functionpath, "020_preprocess_filtering_functions.R"))
-source(file.path(functionpath, "030_alpha_diversity_functions.R"))
-source(file.path(functionpath, "040_beta_diversity_functions.R"))
-#source(file.path(functionpath, "050_diff_abundance_functions.R"))
-source(file.path(functionpath, "060_phylum_analysis_functions.R"))
-source(file.path(functionpath, "n_050_diff_abundance_functions.R"))
+source(file.path(functionpath, "_n_000_helper_functions.R"))
+source(file.path(functionpath, "_n_010_explore_ps_functions.R"))
+source(file.path(functionpath, "_n_020_alpha_diversity_functions.R"))
+# source(file.path(functionpath, "040_beta_diversity_functions.R"))
+# #source(file.path(functionpath, "050_diff_abundance_functions.R"))
+# source(file.path(functionpath, "060_phylum_analysis_functions.R"))
+# source(file.path(functionpath, "n_050_diff_abundance_functions.R"))
 
 # - load your phyloseq object - 
 # NB: USER INPUT
@@ -131,7 +142,6 @@ if(! file.exists(file.path(datapath, name_phyloseq_rds))){
 }
 
 ps <- readRDS(file.path(datapath, name_phyloseq_rds))
-
 # --
 
 # - Define the group variable for sample comparisons -
@@ -160,10 +170,10 @@ if (!all(group_var_levels %in% unique(sample_data(ps)[[group_var]]))) {
 if (length(group_var_levels) != 2) {
         stop("Sorry, for MicrobiomeX2 group_var_levels needs to consist of exactly 2 levels.")
 }
-
 # -- 
 
-# - Set the colors representing the groups in your group_var -
+# - Set the colors representing the groups in your group_var_levels -
+# NB: so also color_levels must consist of exactly two colors
 # NB: USER INPUT
 color_levels <- c(cbPalette[2], cbPalette[4]) # choose your preferred colors for each group in your group_var. If set to NULL:
 
@@ -197,10 +207,10 @@ if (!is.null(shape)) {
 
 # - Set the taxonomic_level for the analysis -
 # NB: You can choose all levels within colnames(tax_table(ps))
-# phyloseq::taxglom to that level will be used.
+# phyloseq::taxglom will be used to adjust the phyloseq object to the chosen taxonomic_level.
 # if you set taxonomic_level to NULL, all taxa will be analysed (i.e. strain/species/ASV level analysis)
 # NB user input
-taxonomic_level <- "Genus"
+taxonomic_level <- NULL
 # NB user input
 phylum_NA_removal <- "no" # if yes you remove all taxa for which Phylum = NA before the analyses
 
@@ -294,6 +304,7 @@ PackageVersions <- data.frame(R = version$version.string,
                               tidyr = packageVersion("tidyr"),
                               gridExtra = packageVersion("gridExtra"),
                               xtable = packageVersion("xtable"),
+                              RVAideMemoire = packageVersion("RVAideMemoire"),
                               viridis = packageVersion("viridis"),
                               scales = packageVersion("scales"),
                               ggthemes = packageVersion("ggthemes"),
@@ -301,7 +312,9 @@ PackageVersions <- data.frame(R = version$version.string,
                               ggpubr = packageVersion("ggpubr"),
                               RColorBrewer = packageVersion("RColorBrewer"),
                               pheatmap = packageVersion("pheatmap"),
-                              grid = packageVersion("grid"))
+                              grid = packageVersion("grid"),
+                              breakaway = packageVersion("breakaway"),
+                              boodkdown = packageVersion("bookdown"))
 
 for (i in 1:ncol(PackageVersions)){
         PackageVersions[,i] <- as.character(PackageVersions[,i])

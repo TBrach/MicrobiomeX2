@@ -1,0 +1,214 @@
+# Alpha diversity analysis 
+
+- see "Rarefaction, alpha diversity, and statistics" by Amy Willis: key problems in alpha diversity comparisons are:
+    - estimates of the alpha diversity of an environment from a sample of that environment are usually biased in a way that they underrepresent the real diversity
+    - measuring errors/variance should be taken into account, specifically a bigger sample is more important in estimating the diversity of an environment than a small sample (small number of reads)
+- Here alpha diversity is accordingly analysed by all three methods: raw (relative abundances from raw counts), rarefied, and corrected = breakaway package from Amy Willis
+
+
+
+## raw **alpha-diversity**, i.e. without rarefying
+
+- comparing alpha diversity based on raw data has the huge problem of ignoring sample size differences. Usually there is a trend that more reads correlate with higher diversity.
+- We therefore check here, whether there are significant sample size differences between the groups. 
+- We further look at the residuals of a linear fit alpha diversity vs sample size to correct for this confounder.
+
+
+
+### Check whether sample_sums/sample sizes/library sizes differ between groups
+
+- NB: sample size adjustment has no influence on richness, so sample_sizes are compared for raw counts
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+SampleSumList <- boxplot_sampleSums(physeq = ps, group_var = group_var, color_levels = color_levels, shape = shape, test = "t.test", p_adjust_method = "fdr",
+                                    symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
+```
+
+```{r, fig.width = 7, fig.height = 5, warning = FALSE, message = FALSE, echo = FALSE}
+SampleSumList[["Tr"]]
+```
+
+- **Write your conclusion here:** *e.g.: no significant differences in the sample_sums between the groups which is good news for comparing alpha-diversity on raw counts.*
+
+
+
+### Calculate and alpha diversity measures on raw counts and test for significance
+
+- **NB: I test significance between groups simply by t.test, while Amy Willis used lm(diversity ~ group_var)**
+    - This could be easily implemented as shown in the code
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+# - calculate alpha diversity values and add the residuals of a linear fit: alpha-diversity to total_counts, since those fits are often significant -
+DF_alpha_list <- calc_alphadiv_plusLmResids(physeq = ps, measures = alpha_div_measures, group_var = group_var,
+                                            compare = names(color_levels))
+# NB: uses phyloseq::estimate_richness which works with counts, results in same Shannon values as breakaway::shannon on relative abundances
+lm_fitlist <- DF_alpha_list[[2]]
+DF_alpha <- DF_alpha_list[[1]]
+# --
+
+# - how you could test significance with lm a la Amy Willis -
+# measures <- alpha_div_measures
+# i = 1
+# formulaa <- paste0(measures[i], " ~ ", group_var)
+# # alternative maybe: 
+# formulaa <- paste0(measures[i], " ~ Total +", group_var)
+# formulaa <- as.formula(formulaa)
+# DF_alpha[[group_var]] <- factor(DF_alpha[[group_var]], ordered = F) # important ordering has an effect. In case of more than 2 the reference might also play a role
+# fit <- lm(formula = formulaa, data = DF_alpha)
+# # then get p-values from
+# summary(fit)
+# --
+
+# - calculate p-values of t.tests for the different alpha-diversity measures comparing the levels in group_var - 
+alpha_div_pVals <- calc_pVals_alphdiv(DF_alpha = DF_alpha, measures = alpha_div_measures, group_var = group_var, compare = names(color_levels), test = "t.test")
+# -- 
+
+# - generate boxplots for the different alpha-diversity measures comparing the levels in group_var - 
+alpha_div_boxplots <- boxplots_alphdiv(DF_alpha = DF_alpha, measures = alpha_div_measures, group_var = group_var, shape = shape, color_levels = color_levels, test = "t.test", hide.ns = FALSE)
+# --
+
+# - add alpha_diversity_measure vs total counts plots with results of linear fit in title -
+alpha_div_lmPlots <- lmPlots_alphdiv(DF_alpha = DF_alpha, lm_fitlist = lm_fitlist, measures = alpha_div_measures, group_var = group_var, shape = shape, color_levels = color_levels, test = "t.test")
+# --
+
+TrList <- c(alpha_div_boxplots, alpha_div_lmPlots)
+TrList <- TrList[order(names(TrList))] # to get the plots in the right order
+```
+
+
+```{r, fig.width = 14, fig.height = (length(TrList)/3)*5, warning = FALSE, message = FALSE, echo = FALSE}
+do.call("grid.arrange", c(TrList, ncol = 3))
+rm(TrList, alpha_div_lmPlots, alpha_div_boxplots)
+```
+
+- p.values comparing alpha diversities between the levels in group_var
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+knitr::kable(alpha_div_pVals)
+# print(xtable(alpha_div_pVals, align = "|c|c|c|c|c|c|c|c|c|", digits = 5), include.rownames = FALSE)
+rm(alpha_div_pVals, lm_fitlist, DF_alpha)
+```
+
+- **Write your conclusion here:** *e.g.: level 1 has higher alpha diversity. There is a clear trend that alpha diversity gets higher with higher total_counts, but also the residuals of level 1 in a lm alpha diversity to total_counts are higher than those of level 2.*
+
+
+
+
+## alpha diversity after **rarefying**
+
+- rarefying is inadmissable from a statistician view point since it throws data out. 
+- but when looking at the breakaway shiny app from Amy Wilis it often perfomrs pretty good. In her paper she states as main criticism: rarefying is sometimes justified by claiming that rarefied estimates are equally biased (obviously the rarefied estimates are even more biased than those from raw counts as you underestimate the real diversity even more). However, environments can be identical with respect to one alpha diversity metric, but the different abundance structures will induce different biases when rarefied (she means: there can be different abundance distributions in the environments, as exemplified by different shape parameters in the shiny app. Rarefying can reduce diversity more when the curve plateaus later than when it plateaus early. So the shape of the curve plays a role).
+- but remember: rarefying often performed ok even in Amy Willis shiny app.
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# - do the rarefaction using vegan package -
+if (is.null(rare_level)) {
+        rare_level <- min(sample_sums(ps))
+}
+
+count_table_rare <- vegan::rrarefy(as(otu_table(ps), "matrix"), sample = rare_level)
+
+ps.rare <- ps
+otu_table(ps.rare) <- otu_table(count_table_rare, taxa_are_rows = taxa_are_rows(ps))
+# --
+```
+
+- Rarefaction level used: `r rare_level`
+
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+# - calculate alpha diversity values and add the residuals of a linear fit: alpha-diversity to total_counts, since those fits are often significant -
+DF_alpha_list <- calc_alphadiv_plusLmResids(physeq = ps.rare, measures = alpha_div_measures, group_var = group_var,
+                                            compare = names(color_levels))
+# NB: uses phyloseq::estimate_richness which works with counts, results in same Shannon values as breakaway::shannon on relative abundances
+lm_fitlist <- DF_alpha_list[[2]]
+DF_alpha <- DF_alpha_list[[1]]
+# --
+
+# - calculate p-values of t.tests for the different alpha-diversity measures comparing the levels in group_var - 
+alpha_div_pVals <- calc_pVals_alphdiv(DF_alpha = DF_alpha, measures = alpha_div_measures, group_var = group_var, compare = names(color_levels), test = "t.test")
+# -- 
+
+# - generate boxplots for the different alpha-diversity measures comparing the levels in group_var - 
+alpha_div_boxplots <- boxplots_alphdiv(DF_alpha = DF_alpha, measures = alpha_div_measures, group_var = group_var, shape = shape, color_levels = color_levels, test = "t.test", hide.ns = FALSE)
+# --
+
+# - add alpha_diversity_measure vs total counts plots with results of linear fit in title -
+alpha_div_lmPlots <- lmPlots_alphdiv(DF_alpha = DF_alpha, lm_fitlist = lm_fitlist, measures = alpha_div_measures, group_var = group_var, shape = shape, color_levels = color_levels, test = "t.test")
+# --
+
+TrList <- c(alpha_div_boxplots, alpha_div_lmPlots)
+TrList <- TrList[order(names(TrList))] # to get the plots in the right order
+```
+
+
+```{r, fig.width = 14, fig.height = (length(TrList)/3)*5, warning = FALSE, message = FALSE, echo = FALSE}
+do.call("grid.arrange", c(TrList, ncol = 3))
+rm(TrList, alpha_div_lmPlots, alpha_div_boxplots)
+```
+
+- p.values comparing alpha diversities between the levels in group_var
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+knitr::kable(alpha_div_pVals)
+# print(xtable(alpha_div_pVals, align = "|c|c|c|c|c|c|c|c|c|", digits = 5), include.rownames = FALSE)
+rm(alpha_div_pVals, lm_fitlist, DF_alpha)
+```
+
+- **Write your conclusion here:** *e.g.: the linear plots show that after rarefying, all samples have same sample_sums().*
+
+
+
+###  Rarefaction curves
+
+- rarefaction curves calculate the alpha diversity (richness) of each sample at different total counts (sample sizes) in steps from 0 up to the chosen rare_max_total value.
+    - samples with total counts < rare_max_total have consequently shorter rarefaction curves, i.e. curves that stop before max_total
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+if (is.null(rare_max_total)){
+        rare_max_total <- quantile(sample_sums(ps), probs = .25)
+}
+
+rarefaction_curves <- raref_curve_richness(physeq = ps, group_var = group_var, max_total = rare_max_total, step_size = step_size, color_levels = color_levels, seed = seed)
+```
+
+
+
+```{r, fig.width = 12, fig.height = 20, warning = FALSE, message = FALSE, echo = FALSE}
+grid.arrange(rarefaction_curves[["Tr_richness_col"]], rarefaction_curves[["Tr_richness_group"]], rarefaction_curves[["Tr_richness_grad"]], ncol = 1)
+```
+
+- The used rare_max_total was `r rare_max_total`
+
+- **Write your conclusion here:** *e.g.: alpha diversities plateau pretty quickly, most likely not many singletons in.*
+
+
+
+## alpha diversity/Richness with **breakaway**
+
+- see paper by Amy Willis on breakaway. Unfortunately the calculation takes a bit of time. 
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+breakawayResults <- calc_breakaway_from_phyloseq(ps, group_var, color_levels)
+resultList <- analyse_breakaway_results(breakawayResults, group_var, color_levels, test = "t.test")
+breakawayTr <- resultList[[2]]
+breakawayDF <- resultList[[1]][[1]]
+```
+
+- The following plot shows the breakaway alpha diversity estimates in a boxplot (without errors) together with p-values of a simple t.test
+
+
+```{r, fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
+breakawayTr
+```
+
+- The following table shows the breakaway p-values obtained with breakaway::beta. 
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+knitr::kable(breakawayDF)
+```
+
+
+

@@ -1,6 +1,7 @@
 # Preprocessing and filtering
 
 - **filtering strategy**:
+    - Filtering is done on size adjusted conts.  
     - I filter on prevalence (keeping taxa with prevalence > `r prevalence`) and taxa_sums() (keeping taxa whose taxa sums/total counts over all samples are above the `r taxa_sums_quantile` quantile)
         - prevalence filter: remove taxa that are only in very few samples
         - taxa_sums_quantile filter: keep very abundant taxa even if they are only present in a few samples.
