@@ -98,7 +98,7 @@ test_diffs_in_prevalence_single <- function(physeq, group_var, compare = NULL, p
         # --
         
         df <- data.frame(p_val = p_vals, p_val_adj = p_vals_adj, signi = significance, signi_adj = significance_adj, oddsRatio = round(oddRatios, 2), oddsRatio_lb = round(oddRatios_lb_final, 2),
-                         oddsRatio_ub = round(oddRatios_ub_final, 2), direction = direction, prev_PC_gr1 = prev_PC_gr1,  prev_PC_gr2 = prev_PC_gr2)
+                         oddsRatio_ub = round(oddRatios_ub_final, 2), direction = direction, comparison = paste(group_var_levels, collapse = " vs "),  prev_PC_gr1 = prev_PC_gr1,  prev_PC_gr2 = prev_PC_gr2)
         
         df <- cbind(as.data.frame(df), tax_table(physeq))
         df$Taxon <- colnames(CT)
@@ -146,6 +146,7 @@ get_taxon_names <- function(df) {
 
 
 
+
 # --
 #######################################
 ### FUNCTION: format_hit_table
@@ -186,6 +187,8 @@ format_hit_table <- function (result_df, p.adjust.threshold = 0.1, p.adjust.meth
         list(hit_table = df, no_hits = no_hits)
 }
 # --
+
+
 
 
 # --
@@ -504,6 +507,9 @@ plot_heatmap_physeq <- function (physeq, sample_colors = NULL, taxa_info_df = NU
 # --
 
 
+
+
+
 # --
 #######################################
 ### test_differential_abundance_DESeq2single
@@ -584,7 +590,6 @@ test_differential_abundance_DESeq2single <- function(physeq, group_var, compare 
         
         
         # - analyse the res -
-        
         res <- as.data.frame(results(dds, contrast = c(group_var, group_var_levels), cooksCutoff = cooksCutoff))
         
         res$p_val_adj <- p.adjust(res$pvalue, method = p.adjust.method) # NB: in case of "fdr" same as default DESeq2
@@ -616,12 +621,14 @@ test_differential_abundance_DESeq2single <- function(physeq, group_var, compare 
         
         res$direction <- rep(group_var_levels[2], nrow(res))
         res$direction[res$log2FoldChange > 0] <- group_var_levels[1]
+        
+        res$comparison <- paste(group_var_levels, collapse = " vs ")
         # --
         
         res$Taxon <- rownames(res)
         
         res <- dplyr::select(res, Taxon, teststat = stat, p_val = pvalue, p_val_adj,
-                             signi, signi_adj, direction, 
+                             signi, signi_adj, direction, comparison,
                              baseMean, log2FoldChange, Mean_grp1,
                              Mean_grp2, prev_PC_grp1, prev_PC_grp2)
         
@@ -893,9 +900,10 @@ test_differential_abundance_Wilcoxonsingle <- function(physeq, group_var, compar
         
         DF$direction <- i
         DF$direction[DF$teststat > 0] <- j
+        DF$comparison <- paste(group_var_levels, collapse = " vs ")
         
         
-        DF <- dplyr::select(DF,  Taxon:p_val, p_val_adj:direction, Median_grp1:W)
+        DF <- dplyr::select(DF,  Taxon:p_val, p_val_adj:comparison, Median_grp1:W)
         
         DF <- cbind(DF, tax_table(physeq))
         DF <- dplyr::arrange(DF, desc(abs(teststat)))
@@ -914,6 +922,7 @@ test_differential_abundance_Wilcoxonsingle <- function(physeq, group_var, compar
 #################
 
 test_differential_abundance_WilcoxonsingleManiCoin <- function(physeq, group_var, compare = NULL, block = NULL, excludeZeros = FALSE, p.adjust.method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))){
+        library(coin)
         
         if (taxa_are_rows(physeq)) { 
                 physeq <- t(physeq)
@@ -990,8 +999,6 @@ test_differential_abundance_WilcoxonsingleManiCoin <- function(physeq, group_var
                 formula <- as.formula(formula)
                 
                 
-                
-                
                 if (length(x) != 0 && length(y) != 0){
                         wt <- coin::wilcox_test(formula, data = data, subset = subset, 
                                                 conf.int = FALSE, distribution = "asymptotic", 
@@ -1043,9 +1050,9 @@ test_differential_abundance_WilcoxonsingleManiCoin <- function(physeq, group_var
         
         DF$direction <- i
         DF$direction[DF$teststat > 0] <- j
+        DF$comparison <- paste(group_var_levels, collapse = " vs ")
         
-        
-        DF <- dplyr::select(DF,  Taxon:p_val, p_val_adj:direction, Median_grp1:Z)
+        DF <- dplyr::select(DF,  Taxon:p_val, p_val_adj:comparison, Median_grp1:Z)
         
         DF <- cbind(DF, tax_table(physeq))
         DF <- dplyr::arrange(DF, desc(abs(teststat)))

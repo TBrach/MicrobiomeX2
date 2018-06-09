@@ -381,3 +381,74 @@ knitr::kable(Inputs_phyloseqAnalysis)
 
 
 
+
+<!--chapter:end:index.Rmd-->
+
+
+# Exploratory analysis of the phyloseq object: 
+
+Placeholder
+
+
+## Removal of taxa that are not present in a single sample
+## Removal of taxa that were not assigned to phylum level (if chosen) 
+## Calculate Size Factors for sample/library size adjustment
+## Perform tax_glom to the chosen taxonomic_level, which is: `r if (is.null(taxonomic_level)) {"strain level/all taxa"} else {taxonomic_level}`
+## Generate a sample/library size adjusted phyloseq object
+## Tabular overview of phyla distribution based on size adjusted counts
+### Visualise the effect of the size factor adjustment and the size factors
+## Assignment distribution of taxa
+### Is the taxonomic assignment better for more abundant/pevalent taxa?
+## Abundance and prevalence distributions of the `r ntaxa(ps)` taxa in `r nsamples(ps)` samples
+### Prevalence and abundance distributions of the `r ntaxa(ps)` in relation to the chosen prevalence that is later used for filtering
+
+<!--chapter:end:010_ExploratoryAnalysisofPhyloseqObject.Rmd-->
+
+
+# Alpha diversity analysis 
+
+Placeholder
+
+
+## raw **alpha-diversity**, i.e. without rarefying
+### Check whether sample_sums/sample sizes/library sizes differ between groups
+### Calculate and alpha diversity measures on raw counts and test for significance
+## alpha diversity after **rarefying**
+###  Rarefaction curves
+## alpha diversity/Richness with **breakaway**
+
+<!--chapter:end:020_Alpha_diversity_analysis.Rmd-->
+
+
+# Preprocessing and filtering
+
+Placeholder
+
+
+
+<!--chapter:end:030_Preprocessing_filtering.Rmd-->
+
+
+# Beta diversity analysis
+
+Placeholder
+
+
+## Beta diversity analysis using ps_filt_ra
+### Calculate beta diversity distances, compare distances by t.test and adonis, construct ordination plots
+### Beta diversity results for relative abundance (ps_filt_ra)
+
+<!--chapter:end:040_Beta_diversity_analysis.Rmd-->
+
+
+# Differential Abundance analysis
+
+Placeholder
+
+
+## Differential prevalence analysis with fisher.test
+## DeSeq2 analysis
+## Wilcoxon test excluding zeros using relative abundances 
+
+<!--chapter:end:050_Differential_abundance_analysis.Rmd-->
+

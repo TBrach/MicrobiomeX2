@@ -3,6 +3,8 @@
 - **For all analyses, fisher, DeSeq, wilcoxon: even if no taxon was significantly different between the groups (levels), the ten taxa with the lowest p-value (test stat) are illustrated.**
 
 
+
+
 ## Differential prevalence analysis with fisher.test
 
 - **simply a fisher exact test testing whether some taxa are more prevalent in one group than the other**
@@ -13,7 +15,7 @@ physeq_to_test <- ps_filt_ra
 # --
 
 # - run the diff_abundance test -
-diff_ab_df <- test_diffs_in_prevalence_single(physeq = physeq_to_test, group_var = group_var, compare = group_var_levels, p.adj.method = "fdr", minCount = 0L)
+diff_ab_df <- test_diffs_in_prevalence_single(physeq = physeq_to_test, group_var = group_var, compare = group_var_levels, p.adj.method = "fdr", minCount = 0L, symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
 # --
 
 # - catch the hits -
@@ -160,6 +162,7 @@ violin_plots[[2]] + scale_y_log10()
 
 
 - **Write your conclusion here:** *e.g: Some taxa were indeed more prevalent in the one group or the other*
+
 
 
 

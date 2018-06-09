@@ -1,0 +1,86 @@
+# Beta diversity analysis
+
+
+## Beta diversity analysis using ps_filt_ra
+
+
+
+### Calculate beta diversity distances, compare distances by t.test and adonis, construct ordination plots
+
+- NB: analysis is done on relative abundance here
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE, include = FALSE}
+physeq_to_test <- ps_filt_ra
+
+# - calculate the beta diversity distances -
+dist_list <- calc_beta_div_distances(physeq_to_test, dist_methods, group_var = group_var, compare = group_var_levels) # produces objects of class "dist"
+# --
+
+# - gemerate boxplots comparing within to between group distances and test significance by t.test-
+# NB: takes time if there are many samples, so you might want to take it out if there are many
+dist_analysis_list <- compare_beta_div_distances_directly_new(dist_list = dist_list, physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, jitter_up_to = 100, test = "t.test", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")),
+                               p.adjust.method = "BH", hide.ns = FALSE)
+
+# --
+
+
+# - test significance by Permutational Multivariate Analysis of Variance Using Distance Matrix and vegan::adonis -
+group_factor <- sample_data(physeq_to_test)[[group_var]]
+# make sure group_factor fits to dist_list, i.e. only keep samples covered by compare = group_var_levels!
+group_factor <- factor(group_factor[group_factor %in% group_var_levels], levels = group_var_levels, ordered = T)
+adonis_list <- lapply(dist_list, function(dist_obj){
+        loop_vegan_adonis(dist_obj = dist_obj, group_fac = group_factor)
+})
+# --
+
+
+# - construct ordination plots -
+pcoas <- calc_ordination_from_distances(physeq_to_test, group_var = group_var, dist_list = dist_list, color_levels = color_levels, ordination_type = "PCoA", shape = shape, coord_cor = coord_cor, phylum_colors = phylum_colors) 
+
+TrList_samples <- pcoas[["ordination_Tr_samples"]]
+TrList_taxa <- pcoas[["ordination_Tr_taxa"]]
+TrList_pcoa <- c(rbind(TrList_samples, TrList_taxa)) # It works to combine lists alternatingly:)
+# --
+```
+
+
+
+### Beta diversity results for relative abundance (ps_filt_ra)
+
+- **Distance boxplots**
+
+```{r, fig.width = 14, fig.height = 10*length(dist_analysis_list[["DistanceBoxplots"]]), warning = FALSE, message = FALSE, echo = FALSE}
+# pdf(file = "beta_p_0prev.pdf", width = 10, height = 8)
+do.call("grid.arrange", c(dist_analysis_list[["DistanceBoxplots"]], nrow = length(dist_analysis_list[["DistanceBoxplots"]])))
+# dev.off()
+```
+
+
+- **Write your conclusion here:** *e.g.: with many samples it is almost always significant. But you often see that within group samples can be further apart from each other than at least some between group samples, even though adonis sees significant clustering*
+
+
+
+
+- **adonis, Permutational Multivariate Analysis of Variance Using Distance Matrix**:
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+for (i in 1:length(adonis_list)){
+        print(knitr::kable(adonis_list[[i]], caption = names(adonis_list)[i]))
+}
+```
+
+
+- **Write your conclusion here:** *always have a look at R2, especially if adonis says there is a significant influence by the groups*
+
+
+
+- **Ordination Plots**
+
+```{r, fig.width = 14, fig.height = 3.5*length(TrList_samples), warning = FALSE, message = FALSE, echo = FALSE}
+#pdf(file = "pcoa_ra.pdf", width = 10, height = 8)
+do.call("grid.arrange", c(TrList_pcoa, ncol = 2))
+# TrList_ra[[1]]
+# dev.off()
+```
+
+
