@@ -20,6 +20,9 @@ calc_beta_div_distances <- function(physeq, dist_methods = c("bray"), group_var 
                 
                 keepSamples <- sample_names(physeq)[sample_data(physeq)[[group_var]] %in% compare]
                 physeq <- prune_samples(keepSamples, physeq)
+                # not sure if taxa that are not present in a single sample after the prune affect distance?:
+                # tested: at least not for bray curtis, and jsd. When you find one, uncomment:
+                # physeq <- phyloseq::subset_taxa(physeq, taxa_sums(ps) != 0) 
                 
         }
         

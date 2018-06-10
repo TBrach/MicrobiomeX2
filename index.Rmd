@@ -127,7 +127,9 @@ source(file.path(functionpath, "_n_020_alpha_diversity_functions.R"))
 source(file.path(functionpath, "_n_030_preprocess_filtering_functions.R"))
 source(file.path(functionpath, "_n_040_beta_diversity_functions.R"))
 source(file.path(functionpath, "_n_050_diff_abundance_functions.R"))
-# source(file.path(functionpath, "060_phylum_analysis_functions.R"))
+source(file.path(functionpath, "_n_060_phylum_analysis_functions.R"))
+# --
+
 
 # - load your phyloseq object - 
 # NB: USER INPUT

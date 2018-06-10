@@ -116,9 +116,7 @@ taxa_annotation1 <- paste(taxa_annotation, " (", taxa_hit_df$signi_adj, ")", sep
 
 # - prepare violin plots -
 taxa_illustrated <- 10
-violin_plots <- plot_hittaxa_boxAndviolin(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, 
-                                          taxa_info_df = head(taxa_hit_df, taxa_illustrated), taxa_annotation = head(taxa_annotation1, taxa_illustrated), shape = NULL, facet_cols = 5,
-                                          excludeZero = FALSE, logTransform = FALSE)
+violin_plots <- plot_hittaxa_boxAndviolin(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, taxa_info_df = head(taxa_hit_df, taxa_illustrated), taxa_annotation = head(taxa_annotation1, taxa_illustrated), shape = shape, facet_cols = 5, excludeZero = FALSE, logTransform = FALSE)
 # --
 ```
 
@@ -212,7 +210,7 @@ taxa_annotation1 <- paste(taxa_annotation, " (", taxa_hit_df$signi_adj, ")", sep
 # - prepare violin plots -
 taxa_illustrated <- 10
 violin_plots <- plot_hittaxa_boxAndviolin(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, 
-                                          taxa_info_df = head(taxa_hit_df, taxa_illustrated), taxa_annotation = head(taxa_annotation1, taxa_illustrated), shape = NULL, facet_cols = 5,
+                                          taxa_info_df = head(taxa_hit_df, taxa_illustrated), taxa_annotation = head(taxa_annotation1, taxa_illustrated), shape = shape, facet_cols = 5,
                                           excludeZero = TRUE, logTransform = FALSE)
 # --
 ```

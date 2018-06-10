@@ -83,6 +83,7 @@ plot_sample_bars <- function(physeq, x = "Sample", y = "Abundance", group_var, c
 
 
 
+
 # --
 ####################################
 ## plot_taxa_ratios_AllLevels 
@@ -132,10 +133,6 @@ plot_taxa_ratios_AllLevels <- function(physeq, group_var, color_levels, tax_name
         #                     paste(group_var_levels, collapse = ", ")))
         # }
         
-        if (!all(group_var_levels %in% levels(group_fac))) {
-                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
-        }
-        
         
         # - check that given tax_names fit to physeq and change taxa_names of physeq -
         if (is.null(tax_names)){
@@ -150,6 +147,7 @@ plot_taxa_ratios_AllLevels <- function(physeq, group_var, color_levels, tax_name
         
         # - calculate the matrix taxa_nom/(all other taxa) -         
         CT <- t(as(otu_table(physeq), 'matrix')) # now taxa are rows and samples are columns
+        # ONLY keep samples defined by group_var_levels (= names(color_levels))
         CT <- CT[, group_fac %in% group_var_levels]
         
         
@@ -204,14 +202,14 @@ plot_taxa_ratios_AllLevels <- function(physeq, group_var, color_levels, tax_name
         
         pVals <- dplyr::arrange(pVals, p)
         
-        # NB: the pVals change when you log the ratios (scale_y_log10())
+        # NB: the pVals for t.test change when you log the ratios (scale_y_log10())
         TbT_DF_l$RatioLog10 <- log10(TbT_DF_l$Ratio)
         pValsLog <- ggpubr::compare_means(formula = RatioLog10 ~ Group, data = TbT_DF_l, group.by = "Taxon", method = test, p.adjust.method = p_adjust_method, symnum.args = symnum.args)
         pValsLog <- dplyr::arrange(pValsLog, p)
         # --
         
         # NB: I plot now for log and non log independently, even though ggpubr is so smart to change the p-values when you just use
-        # Tr + scale_y_log10(). I plot independently because log might change the order!
+        # Tr + scale_y_log10(). I plot independently because log might change the order in case of t.test!
         TbT_DF_l_log <- TbT_DF_l
         
         # - order taxa based on pVals result or based on tax_order -
@@ -305,6 +303,242 @@ plot_taxa_ratios_AllLevels <- function(physeq, group_var, color_levels, tax_name
         
 }
 #--
+
+
+
+
+
+# --
+####################################
+## calculate_raw_TbTmatrixes:
+###################################
+
+calculate_raw_TbTmatrixes = function(physeq){
+        
+        if (taxa_are_rows(physeq)) {physeq <- t(physeq)}
+        
+       
+        CT <- t(as(otu_table(physeq), 'matrix')) # now taxa are rows and samples are columns
+        
+        TbTmatrixes <- lapply(1:nrow(CT), function(i){apply(CT, 2, function(samp_cnts){samp_cnts[i]/samp_cnts})})
+        # produces for each taxon (= host taxon) a TbTMatrix
+        # NB: there are Inf, and NaN values in the matrixes, specifically
+        # 0/x = 0, x/0 = Inf; 0/0 = NaN!
+        
+        names(TbTmatrixes) <- rownames(TbTmatrixes[[1]])
+        
+        
+        TbTmatrixes
+        
+}
+# --
+
+
+
+
+
+
+
+
+# --
+####################################
+## create_raw_TbT_TilePlot: 
+###################################
+# NB: In this version TbTmatrixes should have been calculated on all samples in physeq. 
+# names(color_levels) should only contain two levels in group_var!
+
+create_raw_TbT_TilePlot <- function(TbTmatrixes, physeq, group_var, color_levels, tax_names = NULL, tax_order = NULL, 
+                                           test = "wilcoxon", signi_level = 0.05, p_adjust_method = "none") {
+        
+        if(!identical(length(TbTmatrixes), ntaxa(physeq))){stop("TbTmatrixes don't fit to physeq")}
+        
+        if(ncol(TbTmatrixes[[1]]) != nsamples(physeq)){stop("TbTmatrixes don't fit to physeq. Not the same number of samples.")}
+        
+        
+        if(test != "wilcoxon" & test != "t.test"){stop("test unknown, must be wilcoxon or t.test")}
+        
+        if(! group_var %in% colnames(sample_data(physeq))) {
+                stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
+        }
+        
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        
+        compare <- names(color_levels)
+        
+        if (!is.null(compare)) {
+                group_var_levels <- compare
+        } else {
+                group_var_levels <- levels(group_fac)
+        }
+        
+        if (length(group_var_levels) != 2) {
+                stop(paste0("compare (names(color_levels)) must consist of two groups - you asked for ", 
+                            paste(group_var_levels, collapse = ", ")))
+        }
+        
+        if (!all(group_var_levels %in% levels(group_fac))) {
+                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
+        }
+        
+  
+        
+        # - check that given tax_names fit to physeq and change taxa_names of physeq -
+        if (is.null(tax_names)){
+                tax_names <- paste("T", 1:ntaxa(physeq), sep = "_")
+        } 
+        
+        if(!identical(ntaxa(physeq), length(tax_names))){stop("tax_names do not fit in length to physeq")}
+        
+        tax_names <- make.unique(tax_names)
+        # --
+        
+        
+        
+        names(TbTmatrixes) <- tax_names
+        
+        TbTmatrixes <- lapply(TbTmatrixes, function(mat){
+                rownames(mat) <- tax_names
+                mat
+        })
+        
+        
+        i <- group_var_levels[1]
+        j <- group_var_levels[2]
+        
+        # ntaxa * ntaxa wilcoxon tests take time if you have a lot of taxa!
+        pValMatrix <- sapply(TbTmatrixes, function(mat){
+                apply(mat, 1, function(taxon_ratios){
+                        x <- taxon_ratios[group_fac == i]
+                        x <- x[is.finite(x) & x != 0] # removes all ratios in which one of the two taxa was not present!
+                        y <- taxon_ratios[group_fac == j]
+                        y <- y[is.finite(y) & y != 0] # removes 0/0 = NaN, 0/x = 0, x/0 = Inf
+                        if (test == "wilcoxon"){
+                                if (length(x) > 0 && length(y) > 0){
+                                        pValue <- wilcox.test(x = x, y = y, alternative = "two", paired = F, exact = F)$p.value
+                                        # NB: wilcox.test ignores in default setting (maybe see na.action) NA, NaN, Inf, -Inf
+                                        # For plot: change sign of pValue to negative if taxon is more abundant in group 1. 
+                                        Ranks <- rank(c(x[!is.na(x)], y[!is.na(y)]))
+                                        n1 <- length(x[!is.na(x)])
+                                        n2 <- length(y[!is.na(y)])
+                                        Wx <- sum(Ranks[1:n1])-(n1*(n1+1)/2)
+                                        Wy <- sum(Ranks[(n1+1):(n1+n2)])-(n2*(n2+1)/2)
+                                        if(Wx > Wy){pValue <- -1*pValue}
+                                        pValue
+                                        
+                                } else {
+                                        pValue = 1
+                                }
+                                
+                        } else if (test == "t.test") {
+                                if (length(x) > 1 && length(y) > 1 && var(x) > 0 && var(y) > 0){
+                                        pValue <- t.test(x = x, y = y, alternative = "two")$p.value
+                                        if (mean(x, na.rm = T) > mean(y, na.rm = T)){pValue <- -1*pValue}
+                                        pValue
+                                } else {
+                                        pValue <- 1
+                                }
+                                
+                        }
+                        
+                })
+        })
+        
+        # make sure diagonal is all NA (can be exceptions especially for t.test)
+        diag(pValMatrix) <- NA
+        
+        # - adjust p-values if asked for -        
+        signs <- pValMatrix < 0
+        signs[is.na(signs)] <- FALSE
+        
+        pValMatrix <- abs(pValMatrix)
+        for (e in 1:nrow(pValMatrix)){
+                pValMatrix[e, ] <- p.adjust(pValMatrix[e, ], method = p_adjust_method)
+        } # equal to t(apply(pValMatrix, 1, p.adjust, method = p_adjust))
+        
+        pValMatrix[signs] <- pValMatrix[signs]*(-1)
+        # --
+        
+        # -- add a tile plot of the pValMatrix --
+        
+        DF <- as.data.frame(pValMatrix)
+        DF[is.na(DF)] <- 2 # just to avoid missing values in plot and have a clear non-pValue value to mark self comparisons as black
+        DF$HostTaxon <- rownames(pValMatrix)
+        DF <- tidyr::gather(DF, key = Taxon , value = pValue, - HostTaxon)
+        if (is.null(tax_order)) {
+                DF$Taxon <- factor(DF$Taxon, levels = rownames(pValMatrix), ordered = TRUE)
+                DF$HostTaxon <- factor(DF$HostTaxon, levels = rev(rownames(pValMatrix)), ordered = TRUE)
+        } else {
+                if(!all(rownames(pValMatrix) %in% tax_order)){
+                        stop("given tax_order does not fit to tax_names")
+                }
+                DF$Taxon <- factor(DF$Taxon, levels = tax_order, ordered = TRUE)
+                DF$HostTaxon <- factor(DF$HostTaxon, levels = rev(tax_order), ordered = TRUE)
+                
+        }
+        
+        fill_colors <- c(color_levels, ns = "gray98", " " = "black")
+        
+        DF$Fill <- "ns"
+        DF$Fill[DF$pValue < signi_level & DF$pValue > 0] <- i
+        DF$Fill[DF$pValue > -1*signi_level & DF$pValue < 0] <- j
+        DF$Fill[DF$pValue == 2] <- " "
+        DF$Fill <- factor(DF$Fill, levels = names(fill_colors), ordered = T)
+        TileTr <- ggplot(DF, aes(x = Taxon, y = HostTaxon, fill = Fill))
+        TileTr <- TileTr + 
+                geom_raster() + 
+                # ggtitle(paste(i, " vs ", j, sep = "")) +
+                scale_fill_manual("", values = fill_colors) +
+                scale_x_discrete(position = "top") +
+                labs(x=NULL, y=NULL) +
+                theme_bw() +
+                #theme_tufte(base_family="Helvetica") +
+                theme(panel.border = element_blank(),
+                      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0),
+                      axis.ticks=element_blank())
+        
+        TileTr
+        
+        
+}
+# --
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########################### Functions currently not in use #######################################
+
+
 
 
 
@@ -538,453 +772,6 @@ plot_taxa_ratiosSingle <- function(physeq, group_var, color_levels, tax_names = 
 
 # --
 ####################################
-## calculate_raw_TbTmatrixes:
-###################################
-# see calculate_TbTmatrixes, this one just calculates the "raw" ratio matrixes i.e. without log and gm
-
-## Input: 
-# - physeq = a phyloseq object
-# - group_var, name of the group_fac in sample_data(physeq)
-## Output: 
-# - list of TbTmatrixes, one list for each combi of levels in group_fac, list items are named by level_vs_level
-
-
-calculate_raw_TbTmatrixes = function(physeq, group_var){
-        
-        if (taxa_are_rows(physeq)) {physeq <- t(physeq)}
-        
-        
-        group_fac <- factor(sample_data(physeq)[[group_var]])
-        
-        fac_levels <- levels(group_fac)
-        
-        # - get the level combis -
-        fac_levels_num <- setNames(seq_along(fac_levels), fac_levels) 
-        i_sAndj_s <- get_unique_facLevel_combis(fac_levels)
-        i_s <- i_sAndj_s[["i_s"]]
-        j_s <- i_sAndj_s[["j_s"]]
-        # --
-        
-        TbTmatrixes_list <- vector("list", length = length(i_s))
-        
-        for (k in seq_along(i_s)) {
-                
-                i <- i_s[k]
-                j <- j_s[k]
-                
-                
-                CT <- t(as(otu_table(physeq), 'matrix')) # now taxa are rows and samples are columns
-                group_fac_current <- droplevels(group_fac[as.numeric(group_fac) %in% c(i, j)])
-                CT <- CT[, group_fac %in% group_fac_current]
-                
-                
-                
-                TbTmatrixes <- lapply(1:nrow(CT), function(i){apply(CT, 2, function(samp_cnts){samp_cnts[i]/samp_cnts})})
-                # produces for each taxon (= host taxon) a TbTMatrix
-                # NB: there are Inf, and NaN values in the matrixes, specifically
-                # 0/x = 0, x/0 = Inf; 0/0 = NaN!
-                
-                names(TbTmatrixes) <- rownames(TbTmatrixes[[1]])
-                TbTmatrixes_list[[k]] <- TbTmatrixes
-                names(TbTmatrixes_list)[[k]] <- paste(fac_levels[i], "_vs_", fac_levels[j], sep = "")
-        }
-        
-        TbTmatrixes_list
-        
-}
-# --
-
-
-
-
-# --
-####################################
-## calculate_raw_TbTmatrixesSingle:
-###################################
-
-calculate_raw_TbTmatrixesSingle = function(physeq, group_var, compare){
-        
-        if (taxa_are_rows(physeq)) {physeq <- t(physeq)}
-        
-        if(! group_var %in% colnames(sample_data(physeq))) {
-                stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
-        }
-        
-        group_fac <- factor(sample_data(physeq)[[group_var]])
-        
-        if (!is.null(compare)) {
-                group_var_levels <- compare
-        } else {
-                group_var_levels <- levels(group_fac)
-        }
-        
-        if (length(group_var_levels) != 2) {
-                stop(paste0("compare (group_var_levels) must consist of two groups - you asked for ", 
-                            paste(group_var_levels, collapse = ", ")))
-        }
-        
-        if (!all(group_var_levels %in% levels(group_fac))) {
-                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
-        }
-        
-        i <- group_var_levels[1]
-        j <- group_var_levels[2]
-        
-        CT <- t(as(otu_table(physeq), 'matrix')) # now taxa are rows and samples are columns
-        #group_fac_current <- droplevels(group_fac[group_fac %in% c(i, j)])
-        CT <- CT[, group_fac %in% c(i, j)]
-        
-        
-        
-        TbTmatrixes <- lapply(1:nrow(CT), function(i){apply(CT, 2, function(samp_cnts){samp_cnts[i]/samp_cnts})})
-        # produces for each taxon (= host taxon) a TbTMatrix
-        # NB: there are Inf, and NaN values in the matrixes, specifically
-        # 0/x = 0, x/0 = Inf; 0/0 = NaN!
-        
-        names(TbTmatrixes) <- rownames(TbTmatrixes[[1]])
-        
-        
-        TbTmatrixes
-        
-}
-# --
-
-
-
-
-
-
-
-
-
-
-
-
-# --
-####################################
-## create_raw_TbT_TilePlotsSingle: 
-###################################
-
-
-create_raw_TbT_TilePlotsSingle <- function(TbTmatrixes, physeq, group_var, color_levels, tax_names = NULL, tax_order = NULL, 
-                                           test = "wilcoxon", signi_level = 0.05, p_adjust_method = "none") {
-        
-        if(!identical(length(TbTmatrixes), ntaxa(physeq))){stop("TbTmatrixes don not fit to physeq")}
-        
-        if(test != "wilcoxon" & test != "t.test"){stop("test unknown, must be wilcoxon or t.test")}
-        
-        if(! group_var %in% colnames(sample_data(physeq))) {
-                stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
-        }
-        
-        group_fac <- factor(sample_data(physeq)[[group_var]])
-        
-        compare <- names(color_levels)
-        
-        if (!is.null(compare)) {
-                group_var_levels <- compare
-        } else {
-                group_var_levels <- levels(group_fac)
-        }
-        
-        if (length(group_var_levels) != 2) {
-                stop(paste0("compare (names(color_levels)) must consist of two groups - you asked for ", 
-                            paste(group_var_levels, collapse = ", ")))
-        }
-        
-        if (!all(group_var_levels %in% levels(group_fac))) {
-                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
-        }
-        
-        
-        # - check that given tax_names fit to physeq and change taxa_names of physeq -
-        if (is.null(tax_names)){
-                tax_names <- paste("T", 1:ntaxa(physeq), sep = "_")
-        } 
-        
-        if(!identical(ntaxa(physeq), length(tax_names))){stop("tax_names do not fit in length to physeq")}
-        
-        tax_names <- make.unique(tax_names)
-        # --
-        
-        i <- group_var_levels[1]
-        j <- group_var_levels[2]
-        
-        
-        names(TbTmatrixes) <- tax_names
-        
-        TbTmatrixes <- lapply(TbTmatrixes, function(mat){
-                rownames(mat) <- tax_names
-                mat
-        })
-        group_fac_current <- droplevels(group_fac[group_fac %in% c(i, j)])
-        
-        # ntaxa * ntaxa wilcoxon tests take time if you have a lot of taxa!
-        pValMatrix <- sapply(TbTmatrixes, function(mat){
-                apply(mat, 1, function(taxon_ratios){
-                        x <- taxon_ratios[group_fac_current == i]
-                        x <- x[is.finite(x) & x != 0] # removes all ratios in which one of the two taxa was not present!
-                        y <- taxon_ratios[group_fac_current == j]
-                        y <- y[is.finite(y) & y != 0] # removes 0/0 = NaN, 0/x = 0, x/0 = Inf
-                        if (test == "wilcoxon"){
-                                if (length(x) > 0 && length(y) > 0){
-                                        pValue <- wilcox.test(x = x, y = y, alternative = "two", paired = F, exact = F)$p.value
-                                        # NB: wilcox.test ignores in default setting (maybe see na.action) NA, NaN, Inf, -Inf
-                                        # For plot: change sign of pValue to negative if taxon is more abundant in group 1. 
-                                        Ranks <- rank(c(x[!is.na(x)], y[!is.na(y)]))
-                                        n1 <- length(x[!is.na(x)])
-                                        n2 <- length(y[!is.na(y)])
-                                        Wx <- sum(Ranks[1:n1])-(n1*(n1+1)/2)
-                                        Wy <- sum(Ranks[(n1+1):(n1+n2)])-(n2*(n2+1)/2)
-                                        if(Wx > Wy){pValue <- -1*pValue}
-                                        pValue
-                                        
-                                } else {
-                                        pValue = 1
-                                }
-                                
-                        } else if (test == "t.test") {
-                                if (length(x) > 1 && length(y) > 1 && var(x) > 0 && var(y) > 0){
-                                        pValue <- t.test(x = x, y = y, alternative = "two")$p.value
-                                        if (mean(x, na.rm = T) > mean(y, na.rm = T)){pValue <- -1*pValue}
-                                        pValue
-                                } else {
-                                        pValue <- 1
-                                }
-                                
-                        }
-                        
-                })
-        })
-        
-        # make sure diagonal is all NA (can be exceptions especially for t.test)
-        diag(pValMatrix) <- NA
-        
-        # - adjust p-values if asked for -        
-        signs <- pValMatrix < 0
-        signs[is.na(signs)] <- FALSE
-        
-        pValMatrix <- abs(pValMatrix)
-        for (e in 1:nrow(pValMatrix)){
-                pValMatrix[e, ] <- p.adjust(pValMatrix[e, ], method = p_adjust_method)
-        } # equal to t(apply(pValMatrix, 1, p.adjust, method = p_adjust))
-        
-        pValMatrix[signs] <- pValMatrix[signs]*(-1)
-        # --
-        
-        # -- add a tile plot of the pValMatrix --
-        
-        DF <- as.data.frame(pValMatrix)
-        DF[is.na(DF)] <- 2 # just to avoid missing values in plot and have a clear non-pValue value to mark self comparisons as black
-        DF$HostTaxon <- rownames(pValMatrix)
-        DF <- tidyr::gather(DF, key = Taxon , value = pValue, - HostTaxon)
-        if (is.null(tax_order)) {
-                DF$Taxon <- factor(DF$Taxon, levels = rownames(pValMatrix), ordered = TRUE)
-                DF$HostTaxon <- factor(DF$HostTaxon, levels = rev(rownames(pValMatrix)), ordered = TRUE)
-        } else {
-                if(!all(rownames(pValMatrix) %in% tax_order)){
-                        stop("given tax_order does not fit to tax_names")
-                }
-                DF$Taxon <- factor(DF$Taxon, levels = tax_order, ordered = TRUE)
-                DF$HostTaxon <- factor(DF$HostTaxon, levels = rev(tax_order), ordered = TRUE)
-                
-        }
-        
-        fill_colors <- c(color_levels, ns = "gray98", " " = "black")
-        
-        DF$Fill <- "ns"
-        DF$Fill[DF$pValue < signi_level & DF$pValue > 0] <- i
-        DF$Fill[DF$pValue > -1*signi_level & DF$pValue < 0] <- j
-        DF$Fill[DF$pValue == 2] <- " "
-        DF$Fill <- factor(DF$Fill, levels = names(fill_colors), ordered = T)
-        TileTr <- ggplot(DF, aes(x = Taxon, y = HostTaxon, fill = Fill))
-        TileTr <- TileTr + 
-                geom_raster() + 
-                # ggtitle(paste(i, " vs ", j, sep = "")) +
-                scale_fill_manual("", values = fill_colors) +
-                scale_x_discrete(position = "top") +
-                labs(x=NULL, y=NULL) +
-                theme_bw() +
-                #theme_tufte(base_family="Helvetica") +
-                theme(panel.border = element_blank(),
-                      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0),
-                      axis.ticks=element_blank())
-        
-        TileTr
-        
-        
-}
-# --
-
-
-
-
-# --
-####################################
-## create_raw_TbT_TilePlots: 
-###################################
-# wilcoxon.test is used
-## Input: 
-# - TbTmatrixes_list: The list with the lists of TbTmatrixes for each level combi in group factor
-# NB: here it should be raw_TbTmatrixes with 0 = 0/x, Inf = x/0, NaN = 0/0, all these values will be ignored!!
-# - physeq: used for TbTmatrixes_list generation
-# - p_adjust: method for p.adjust, NB: if not bonferroni or none, the tile plots are not necessarily symmetric anymore
-## Output: 
-# - list of pValMatrixes plus TileTr for each level combination. 
-# NB: I negated the p-values if host taxon was more abundant in grp2 compared to other taxon!!
-
-create_raw_TbT_TilePlots <- function(TbTmatrixes_list, physeq, group_var, tax_names = NULL,
-                                     test = "wilcoxon", p_adjust = "none") {
-        
-        if(!identical(length(TbTmatrixes_list[[1]]), ntaxa(physeq))){stop("TbTmatrixes can not fit to physeq")}
-        
-        if(test != "wilcoxon" & test != "t.test"){stop("test unknown, must be wilcoxon or t.test")}
-        
-        group_fac <- factor(sample_data(physeq)[[group_var]])
-        
-        fac_levels <- levels(group_fac)
-        
-        # - get the level combis -
-        fac_levels_num <- setNames(seq_along(fac_levels), fac_levels) 
-        i_sAndj_s <- get_unique_facLevel_combis(fac_levels)
-        i_s <- i_sAndj_s[["i_s"]]
-        j_s <- i_sAndj_s[["j_s"]]
-        # --
-        
-        result_list <- vector("list", length = length(i_s))
-        
-        for (k in seq_along(i_s)) {
-                
-                i <- i_s[k]
-                j <- j_s[k]
-                
-                TbTmatrixes <- TbTmatrixes_list[[k]]
-                
-                if (is.null(tax_names)){
-                        tax_names <- paste("T", 1:length(TbTmatrixes), sep = "_")
-                } else {
-                        if(!identical(length(TbTmatrixes), length(tax_names))){stop("tax_names do not fit in length to TbTmatrixes")}
-                }
-                
-                tax_names <- make.unique(tax_names)
-                names(TbTmatrixes) <- tax_names
-                
-                TbTmatrixes <- lapply(TbTmatrixes, function(mat){
-                        rownames(mat) <- tax_names
-                        mat
-                })
-                group_fac_current <- droplevels(group_fac[as.numeric(group_fac) %in% c(i, j)])
-                
-                # ntaxa * ntaxa wilcoxon tests take time!
-                pValMatrix <- sapply(TbTmatrixes, function(mat){
-                        apply(mat, 1, function(taxon_ratios){
-                                x <- taxon_ratios[group_fac_current == fac_levels[i]]
-                                x <- x[is.finite(x) & x != 0] # removes all ratios in which one of the two taxa was not present!
-                                y <- taxon_ratios[group_fac_current == fac_levels[j]]
-                                y <- y[is.finite(y) & y != 0] # removes 0/0 = NaN, 0/x = 0, x/0 = Inf
-                                if (test == "wilcoxon"){
-                                        if (length(x) > 0 && length(y) > 0){
-                                                pValue <- wilcox.test(x = x, y = y, alternative = "two", paired = F, exact = F)$p.value
-                                                # NB: wilcox.test ignores in default setting (maybe see na.action) NA, NaN, Inf, -Inf
-                                                # For plot: change sign of pValue to negative if taxon is more abundant in group 1. 
-                                                Ranks <- rank(c(x[!is.na(x)], y[!is.na(y)]))
-                                                n1 <- length(x[!is.na(x)])
-                                                n2 <- length(y[!is.na(y)])
-                                                Wx <- sum(Ranks[1:n1])-(n1*(n1+1)/2)
-                                                Wy <- sum(Ranks[(n1+1):(n1+n2)])-(n2*(n2+1)/2)
-                                                if(Wx > Wy){pValue <- -1*pValue}
-                                                pValue
-                                                
-                                        } else {
-                                                pValue = 1
-                                        }
-                                        
-                                } else if (test == "t.test") {
-                                        if (length(x) > 1 && length(y) > 1 && var(x) > 0 && var(y) > 0){
-                                                pValue <- t.test(x = x, y = y, alternative = "two")$p.value
-                                                if (mean(x, na.rm = T) > mean(y, na.rm = T)){pValue <- -1*pValue}
-                                                pValue
-                                        } else {
-                                                pValue <- 1
-                                        }
-                                        
-                                }
-                                
-                        })
-                })
-                
-                # make sure diagonal is all NA (can be exceptions especially for t.test)
-                diag(pValMatrix) <- NA
-                
-                signs <- pValMatrix < 0
-                signs[is.na(signs)] <- FALSE
-                
-                pValMatrix <- abs(pValMatrix)
-                for (e in 1:nrow(pValMatrix)){
-                        pValMatrix[e, ] <- p.adjust(pValMatrix[e, ], method = p_adjust)
-                } # equal to t(apply(pValMatrix, 1, p.adjust, method = p_adjust))
-                
-                pValMatrix[signs] <- pValMatrix[signs]*(-1)
-                
-                # -- add a tile plot of the pValMatrix --
-                
-                DF <- as.data.frame(pValMatrix)
-                DF[is.na(DF)] <- 2 # just to avoid missing values in plot and have a clear non-pValue value to mark self comparisons as black
-                DF$HostTaxon <- rownames(pValMatrix)
-                DF <- tidyr::gather(DF, key = Taxon , value = pValue, - HostTaxon)
-                DF$Taxon <- factor(DF$Taxon, levels = rownames(pValMatrix), ordered = TRUE)
-                DF$HostTaxon <- factor(DF$HostTaxon, levels = rev(rownames(pValMatrix)), ordered = TRUE)
-                
-                # # add color to the taxa names so you see up and down
-                # colyaxis <- vector(mode = "character", length = nrow(DF))
-                # colyaxis[] <- "black"
-                # colyaxis[grepl("TP-U", levels(DF$HostTaxon))] <- "#E69F00"
-                # colyaxis[grepl("TP-D", levels(DF$HostTaxon))] <- "#009E73"
-                # colxaxis <- vector(mode = "character", length = nrow(DF))
-                # colxaxis[] <- "black"
-                # colxaxis[grepl("TP-U", levels(DF$Taxon))] <- "#E69F00"
-                # colxaxis[grepl("TP-D", levels(DF$Taxon))] <- "#009E73"
-                DF$Fill <- "not significant"
-                DF$Fill[DF$pValue < 0.05 & DF$pValue > 0] <- "up (p < 0.05)"
-                DF$Fill[DF$pValue > -0.05 & DF$pValue < 0] <- "down (p < 0.05)"
-                DF$Fill[DF$pValue == 2] <- " "
-                DF$Fill <- factor(DF$Fill, levels = c("up (p < 0.05)", "not significant", "down (p < 0.05)", " "), ordered = T)
-                TileTr <- ggplot(DF, aes(x = Taxon, y = HostTaxon, fill = Fill))
-                TileTr <- TileTr + 
-                        geom_raster() + 
-                        ggtitle(names(TbTmatrixes_list)[k]) +
-                        scale_fill_manual("", values = c("not significant" = "gray98", "up (p < 0.05)" = "#AA4499", "down (p < 0.05)" = "#88CCEE", " " = "black")) +
-                        scale_x_discrete(position = "top") +
-                        labs(x=NULL, y=NULL) +
-                        theme_tufte(base_family="Helvetica") +
-                        theme(plot.title=element_text(hjust=0)) +
-                        theme(axis.ticks=element_blank()) +
-                        theme(axis.text=element_text(size=7)) +
-                        theme(legend.title=element_blank()) +
-                        theme(legend.text=element_text(size=6)) +
-                        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0)) # colour = colxaxis
-                result_list[[k]] <- list(pValMatrix = pValMatrix, TileTr = TileTr)
-        }
-        
-        names(result_list) <- names(TbTmatrixes_list)
-        result_list
-}
-# --
-
-
-
-
-
-
-
-
-
-
-
-########################### Functions currently not in use #######################################
-
-# --
-####################################
 ## plot_taxa_ratios_levelPairs 
 ###################################
 ## Input: 
@@ -1183,5 +970,445 @@ plot_taxa_ratios_levelPairs <- function(TbTmatrixes_list, physeq, group_var, tax
         
         names(result_list) <- names(TbTmatrixes_list)
         result_list
+}
+# --
+
+
+
+
+
+# --
+####################################
+## calculate_raw_TbTmatrixes_Pairs:
+###################################
+# see calculate_TbTmatrixes, this one just calculates the "raw" ratio matrixes i.e. without log and gm
+
+## Input: 
+# - physeq = a phyloseq object
+# - group_var, name of the group_fac in sample_data(physeq)
+## Output: 
+# - list of TbTmatrixes, one list for each combi of levels in group_fac, list items are named by level_vs_level
+
+
+calculate_raw_TbTmatrixes_Pairs = function(physeq, group_var){
+        
+        if (taxa_are_rows(physeq)) {physeq <- t(physeq)}
+        
+        
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        
+        fac_levels <- levels(group_fac)
+        
+        # - get the level combis -
+        fac_levels_num <- setNames(seq_along(fac_levels), fac_levels) 
+        i_sAndj_s <- get_unique_facLevel_combis(fac_levels)
+        i_s <- i_sAndj_s[["i_s"]]
+        j_s <- i_sAndj_s[["j_s"]]
+        # --
+        
+        TbTmatrixes_list <- vector("list", length = length(i_s))
+        
+        for (k in seq_along(i_s)) {
+                
+                i <- i_s[k]
+                j <- j_s[k]
+                
+                
+                CT <- t(as(otu_table(physeq), 'matrix')) # now taxa are rows and samples are columns
+                group_fac_current <- droplevels(group_fac[as.numeric(group_fac) %in% c(i, j)])
+                CT <- CT[, group_fac %in% group_fac_current]
+                
+                
+                
+                TbTmatrixes <- lapply(1:nrow(CT), function(i){apply(CT, 2, function(samp_cnts){samp_cnts[i]/samp_cnts})})
+                # produces for each taxon (= host taxon) a TbTMatrix
+                # NB: there are Inf, and NaN values in the matrixes, specifically
+                # 0/x = 0, x/0 = Inf; 0/0 = NaN!
+                
+                names(TbTmatrixes) <- rownames(TbTmatrixes[[1]])
+                TbTmatrixes_list[[k]] <- TbTmatrixes
+                names(TbTmatrixes_list)[[k]] <- paste(fac_levels[i], "_vs_", fac_levels[j], sep = "")
+        }
+        
+        TbTmatrixes_list
+        
+}
+# --
+
+
+
+# --
+####################################
+## calculate_raw_TbTmatrixesSingle:
+###################################
+
+calculate_raw_TbTmatrixesSingle = function(physeq, group_var, compare){
+        
+        if (taxa_are_rows(physeq)) {physeq <- t(physeq)}
+        
+        if(! group_var %in% colnames(sample_data(physeq))) {
+                stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
+        }
+        
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        
+        if (!is.null(compare)) {
+                group_var_levels <- compare
+        } else {
+                group_var_levels <- levels(group_fac)
+        }
+        
+        if (length(group_var_levels) != 2) {
+                stop(paste0("compare (group_var_levels) must consist of two groups - you asked for ", 
+                            paste(group_var_levels, collapse = ", ")))
+        }
+        
+        if (!all(group_var_levels %in% levels(group_fac))) {
+                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
+        }
+        
+        
+        CT <- t(as(otu_table(physeq), 'matrix')) # now taxa are rows and samples are columns
+        #group_fac_current <- droplevels(group_fac[group_fac %in% c(i, j)])
+        CT <- CT[, group_fac %in% group_var_levels]
+        
+        
+        
+        TbTmatrixes <- lapply(1:nrow(CT), function(i){apply(CT, 2, function(samp_cnts){samp_cnts[i]/samp_cnts})})
+        # produces for each taxon (= host taxon) a TbTMatrix
+        # NB: there are Inf, and NaN values in the matrixes, specifically
+        # 0/x = 0, x/0 = Inf; 0/0 = NaN!
+        
+        names(TbTmatrixes) <- rownames(TbTmatrixes[[1]])
+        
+        
+        TbTmatrixes
+        
+}
+# --
+
+
+
+
+
+
+
+# --
+####################################
+## create_raw_TbT_TilePlots_Pairs: 
+###################################
+# wilcoxon.test is used
+## Input: 
+# - TbTmatrixes_list: The list with the lists of TbTmatrixes for each level combi in group factor
+# NB: here it should be raw_TbTmatrixes with 0 = 0/x, Inf = x/0, NaN = 0/0, all these values will be ignored!!
+# - physeq: used for TbTmatrixes_list generation
+# - p_adjust: method for p.adjust, NB: if not bonferroni or none, the tile plots are not necessarily symmetric anymore
+## Output: 
+# - list of pValMatrixes plus TileTr for each level combination. 
+# NB: I negated the p-values if host taxon was more abundant in grp2 compared to other taxon!!
+
+create_raw_TbT_TilePlots_Pairs <- function(TbTmatrixes_list, physeq, group_var, tax_names = NULL,
+                                     test = "wilcoxon", p_adjust = "none") {
+        
+        if(!identical(length(TbTmatrixes_list[[1]]), ntaxa(physeq))){stop("TbTmatrixes can not fit to physeq")}
+        
+        if(test != "wilcoxon" & test != "t.test"){stop("test unknown, must be wilcoxon or t.test")}
+        
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        
+        fac_levels <- levels(group_fac)
+        
+        # - get the level combis -
+        fac_levels_num <- setNames(seq_along(fac_levels), fac_levels) 
+        i_sAndj_s <- get_unique_facLevel_combis(fac_levels)
+        i_s <- i_sAndj_s[["i_s"]]
+        j_s <- i_sAndj_s[["j_s"]]
+        # --
+        
+        result_list <- vector("list", length = length(i_s))
+        
+        for (k in seq_along(i_s)) {
+                
+                i <- i_s[k]
+                j <- j_s[k]
+                
+                TbTmatrixes <- TbTmatrixes_list[[k]]
+                
+                if (is.null(tax_names)){
+                        tax_names <- paste("T", 1:length(TbTmatrixes), sep = "_")
+                } else {
+                        if(!identical(length(TbTmatrixes), length(tax_names))){stop("tax_names do not fit in length to TbTmatrixes")}
+                }
+                
+                tax_names <- make.unique(tax_names)
+                names(TbTmatrixes) <- tax_names
+                
+                TbTmatrixes <- lapply(TbTmatrixes, function(mat){
+                        rownames(mat) <- tax_names
+                        mat
+                })
+                group_fac_current <- droplevels(group_fac[as.numeric(group_fac) %in% c(i, j)])
+                
+                # ntaxa * ntaxa wilcoxon tests take time!
+                pValMatrix <- sapply(TbTmatrixes, function(mat){
+                        apply(mat, 1, function(taxon_ratios){
+                                x <- taxon_ratios[group_fac_current == fac_levels[i]]
+                                x <- x[is.finite(x) & x != 0] # removes all ratios in which one of the two taxa was not present!
+                                y <- taxon_ratios[group_fac_current == fac_levels[j]]
+                                y <- y[is.finite(y) & y != 0] # removes 0/0 = NaN, 0/x = 0, x/0 = Inf
+                                if (test == "wilcoxon"){
+                                        if (length(x) > 0 && length(y) > 0){
+                                                pValue <- wilcox.test(x = x, y = y, alternative = "two", paired = F, exact = F)$p.value
+                                                # NB: wilcox.test ignores in default setting (maybe see na.action) NA, NaN, Inf, -Inf
+                                                # For plot: change sign of pValue to negative if taxon is more abundant in group 1. 
+                                                Ranks <- rank(c(x[!is.na(x)], y[!is.na(y)]))
+                                                n1 <- length(x[!is.na(x)])
+                                                n2 <- length(y[!is.na(y)])
+                                                Wx <- sum(Ranks[1:n1])-(n1*(n1+1)/2)
+                                                Wy <- sum(Ranks[(n1+1):(n1+n2)])-(n2*(n2+1)/2)
+                                                if(Wx > Wy){pValue <- -1*pValue}
+                                                pValue
+                                                
+                                        } else {
+                                                pValue = 1
+                                        }
+                                        
+                                } else if (test == "t.test") {
+                                        if (length(x) > 1 && length(y) > 1 && var(x) > 0 && var(y) > 0){
+                                                pValue <- t.test(x = x, y = y, alternative = "two")$p.value
+                                                if (mean(x, na.rm = T) > mean(y, na.rm = T)){pValue <- -1*pValue}
+                                                pValue
+                                        } else {
+                                                pValue <- 1
+                                        }
+                                        
+                                }
+                                
+                        })
+                })
+                
+                # make sure diagonal is all NA (can be exceptions especially for t.test)
+                diag(pValMatrix) <- NA
+                
+                signs <- pValMatrix < 0
+                signs[is.na(signs)] <- FALSE
+                
+                pValMatrix <- abs(pValMatrix)
+                for (e in 1:nrow(pValMatrix)){
+                        pValMatrix[e, ] <- p.adjust(pValMatrix[e, ], method = p_adjust)
+                } # equal to t(apply(pValMatrix, 1, p.adjust, method = p_adjust))
+                
+                pValMatrix[signs] <- pValMatrix[signs]*(-1)
+                
+                # -- add a tile plot of the pValMatrix --
+                
+                DF <- as.data.frame(pValMatrix)
+                DF[is.na(DF)] <- 2 # just to avoid missing values in plot and have a clear non-pValue value to mark self comparisons as black
+                DF$HostTaxon <- rownames(pValMatrix)
+                DF <- tidyr::gather(DF, key = Taxon , value = pValue, - HostTaxon)
+                DF$Taxon <- factor(DF$Taxon, levels = rownames(pValMatrix), ordered = TRUE)
+                DF$HostTaxon <- factor(DF$HostTaxon, levels = rev(rownames(pValMatrix)), ordered = TRUE)
+                
+                # # add color to the taxa names so you see up and down
+                # colyaxis <- vector(mode = "character", length = nrow(DF))
+                # colyaxis[] <- "black"
+                # colyaxis[grepl("TP-U", levels(DF$HostTaxon))] <- "#E69F00"
+                # colyaxis[grepl("TP-D", levels(DF$HostTaxon))] <- "#009E73"
+                # colxaxis <- vector(mode = "character", length = nrow(DF))
+                # colxaxis[] <- "black"
+                # colxaxis[grepl("TP-U", levels(DF$Taxon))] <- "#E69F00"
+                # colxaxis[grepl("TP-D", levels(DF$Taxon))] <- "#009E73"
+                DF$Fill <- "not significant"
+                DF$Fill[DF$pValue < 0.05 & DF$pValue > 0] <- "up (p < 0.05)"
+                DF$Fill[DF$pValue > -0.05 & DF$pValue < 0] <- "down (p < 0.05)"
+                DF$Fill[DF$pValue == 2] <- " "
+                DF$Fill <- factor(DF$Fill, levels = c("up (p < 0.05)", "not significant", "down (p < 0.05)", " "), ordered = T)
+                TileTr <- ggplot(DF, aes(x = Taxon, y = HostTaxon, fill = Fill))
+                TileTr <- TileTr + 
+                        geom_raster() + 
+                        ggtitle(names(TbTmatrixes_list)[k]) +
+                        scale_fill_manual("", values = c("not significant" = "gray98", "up (p < 0.05)" = "#AA4499", "down (p < 0.05)" = "#88CCEE", " " = "black")) +
+                        scale_x_discrete(position = "top") +
+                        labs(x=NULL, y=NULL) +
+                        theme_tufte(base_family="Helvetica") +
+                        theme(plot.title=element_text(hjust=0)) +
+                        theme(axis.ticks=element_blank()) +
+                        theme(axis.text=element_text(size=7)) +
+                        theme(legend.title=element_blank()) +
+                        theme(legend.text=element_text(size=6)) +
+                        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0)) # colour = colxaxis
+                result_list[[k]] <- list(pValMatrix = pValMatrix, TileTr = TileTr)
+        }
+        
+        names(result_list) <- names(TbTmatrixes_list)
+        result_list
+}
+# --
+
+
+
+
+
+
+
+# --
+####################################
+## create_raw_TbT_TilePlotsSingle2: 
+###################################
+# NB: this version demands that TbTmatrixes only contain the samples defined by names(color_levels)
+
+create_raw_TbT_TilePlotsSingle2 <- function(TbTmatrixes, physeq, group_var, color_levels, tax_names = NULL, tax_order = NULL, 
+                                            test = "wilcoxon", signi_level = 0.05, p_adjust_method = "none") {
+        
+        if(!identical(length(TbTmatrixes), ntaxa(physeq))){stop("TbTmatrixes don't fit to physeq")}
+        
+        if(test != "wilcoxon" & test != "t.test"){stop("test unknown, must be wilcoxon or t.test")}
+        
+        if(! group_var %in% colnames(sample_data(physeq))) {
+                stop("The given group_var is not a variable in the sample data of the loaded phyloseq object.")
+        }
+        
+        group_fac <- factor(sample_data(physeq)[[group_var]])
+        
+        compare <- names(color_levels)
+        
+        if (!is.null(compare)) {
+                group_var_levels <- compare
+        } else {
+                group_var_levels <- levels(group_fac)
+        }
+        
+        if (length(group_var_levels) != 2) {
+                stop(paste0("compare (names(color_levels)) must consist of two groups - you asked for ", 
+                            paste(group_var_levels, collapse = ", ")))
+        }
+        
+        if (!all(group_var_levels %in% levels(group_fac))) {
+                stop("Not all given compare (group_var_levels) are actually levels in group_var column.")
+        }
+        
+        # special to this Single version
+        if (ncol(TbTmatrixes[[1]]) != sum(group_fac %in% group_var_levels)){
+                stop("TbTmatrixes do not fit to the group_fac in physeq restricted to samples defined by names(color_levels).")
+        }
+        
+        
+        # - check that given tax_names fit to physeq and change taxa_names of physeq -
+        if (is.null(tax_names)){
+                tax_names <- paste("T", 1:ntaxa(physeq), sep = "_")
+        } 
+        
+        if(!identical(ntaxa(physeq), length(tax_names))){stop("tax_names do not fit in length to physeq")}
+        
+        tax_names <- make.unique(tax_names)
+        # --
+        
+        
+        
+        names(TbTmatrixes) <- tax_names
+        
+        TbTmatrixes <- lapply(TbTmatrixes, function(mat){
+                rownames(mat) <- tax_names
+                mat
+        })
+        group_fac_current <- droplevels(group_fac[group_fac %in% group_var_levels])
+        
+        i <- group_var_levels[1]
+        j <- group_var_levels[2]
+        
+        # ntaxa * ntaxa wilcoxon tests take time if you have a lot of taxa!
+        pValMatrix <- sapply(TbTmatrixes, function(mat){
+                apply(mat, 1, function(taxon_ratios){
+                        x <- taxon_ratios[group_fac_current == i]
+                        x <- x[is.finite(x) & x != 0] # removes all ratios in which one of the two taxa was not present!
+                        y <- taxon_ratios[group_fac_current == j]
+                        y <- y[is.finite(y) & y != 0] # removes 0/0 = NaN, 0/x = 0, x/0 = Inf
+                        if (test == "wilcoxon"){
+                                if (length(x) > 0 && length(y) > 0){
+                                        pValue <- wilcox.test(x = x, y = y, alternative = "two", paired = F, exact = F)$p.value
+                                        # NB: wilcox.test ignores in default setting (maybe see na.action) NA, NaN, Inf, -Inf
+                                        # For plot: change sign of pValue to negative if taxon is more abundant in group 1. 
+                                        Ranks <- rank(c(x[!is.na(x)], y[!is.na(y)]))
+                                        n1 <- length(x[!is.na(x)])
+                                        n2 <- length(y[!is.na(y)])
+                                        Wx <- sum(Ranks[1:n1])-(n1*(n1+1)/2)
+                                        Wy <- sum(Ranks[(n1+1):(n1+n2)])-(n2*(n2+1)/2)
+                                        if(Wx > Wy){pValue <- -1*pValue}
+                                        pValue
+                                        
+                                } else {
+                                        pValue = 1
+                                }
+                                
+                        } else if (test == "t.test") {
+                                if (length(x) > 1 && length(y) > 1 && var(x) > 0 && var(y) > 0){
+                                        pValue <- t.test(x = x, y = y, alternative = "two")$p.value
+                                        if (mean(x, na.rm = T) > mean(y, na.rm = T)){pValue <- -1*pValue}
+                                        pValue
+                                } else {
+                                        pValue <- 1
+                                }
+                                
+                        }
+                        
+                })
+        })
+        
+        # make sure diagonal is all NA (can be exceptions especially for t.test)
+        diag(pValMatrix) <- NA
+        
+        # - adjust p-values if asked for -        
+        signs <- pValMatrix < 0
+        signs[is.na(signs)] <- FALSE
+        
+        pValMatrix <- abs(pValMatrix)
+        for (e in 1:nrow(pValMatrix)){
+                pValMatrix[e, ] <- p.adjust(pValMatrix[e, ], method = p_adjust_method)
+        } # equal to t(apply(pValMatrix, 1, p.adjust, method = p_adjust))
+        
+        pValMatrix[signs] <- pValMatrix[signs]*(-1)
+        # --
+        
+        # -- add a tile plot of the pValMatrix --
+        
+        DF <- as.data.frame(pValMatrix)
+        DF[is.na(DF)] <- 2 # just to avoid missing values in plot and have a clear non-pValue value to mark self comparisons as black
+        DF$HostTaxon <- rownames(pValMatrix)
+        DF <- tidyr::gather(DF, key = Taxon , value = pValue, - HostTaxon)
+        if (is.null(tax_order)) {
+                DF$Taxon <- factor(DF$Taxon, levels = rownames(pValMatrix), ordered = TRUE)
+                DF$HostTaxon <- factor(DF$HostTaxon, levels = rev(rownames(pValMatrix)), ordered = TRUE)
+        } else {
+                if(!all(rownames(pValMatrix) %in% tax_order)){
+                        stop("given tax_order does not fit to tax_names")
+                }
+                DF$Taxon <- factor(DF$Taxon, levels = tax_order, ordered = TRUE)
+                DF$HostTaxon <- factor(DF$HostTaxon, levels = rev(tax_order), ordered = TRUE)
+                
+        }
+        
+        fill_colors <- c(color_levels, ns = "gray98", " " = "black")
+        
+        DF$Fill <- "ns"
+        DF$Fill[DF$pValue < signi_level & DF$pValue > 0] <- i
+        DF$Fill[DF$pValue > -1*signi_level & DF$pValue < 0] <- j
+        DF$Fill[DF$pValue == 2] <- " "
+        DF$Fill <- factor(DF$Fill, levels = names(fill_colors), ordered = T)
+        TileTr <- ggplot(DF, aes(x = Taxon, y = HostTaxon, fill = Fill))
+        TileTr <- TileTr + 
+                geom_raster() + 
+                # ggtitle(paste(i, " vs ", j, sep = "")) +
+                scale_fill_manual("", values = fill_colors) +
+                scale_x_discrete(position = "top") +
+                labs(x=NULL, y=NULL) +
+                theme_bw() +
+                #theme_tufte(base_family="Helvetica") +
+                theme(panel.border = element_blank(),
+                      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0),
+                      axis.ticks=element_blank())
+        
+        TileTr
+        
+        
 }
 # --
