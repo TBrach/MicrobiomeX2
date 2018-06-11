@@ -212,5 +212,11 @@ breakawayTr
 knitr::kable(breakawayDF)
 ```
 
+- The following table shows the breakaway models that were used to calculate the richness estimates of the different samples. 
 
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+ModelsUsed <- as.data.frame(table(breakawayResults$name))
+colnames(ModelsUsed) <- c("Model", "Used for No Samples")
+knitr::kable(ModelsUsed)
+```
 
