@@ -6,7 +6,7 @@
 # I guess inputs can be guessed on
 
 plot_sample_bars <- function(physeq, x = "Sample", y = "Abundance", group_var, color_levels, fill = NULL,
-                             color_sample_names = TRUE, col_vec = NULL, facet_grid = NULL){
+                             color_sample_names = TRUE, col_vec = NULL, facet_grid = NULL, order_by_firmicutes = TRUE){
         
         if(taxa_are_rows(physeq)) { physeq <- t(physeq) }
         
@@ -32,16 +32,24 @@ plot_sample_bars <- function(physeq, x = "Sample", y = "Abundance", group_var, c
         
         mdf <- phyloseq::psmelt(physeq)
         
-        # order samples according to levels
-        LookUpDF <- data.frame(Sample = sample_names(physeq), Group = sample_data(physeq)[[group_var]])
-        LookUpDF <- LookUpDF[order(match(LookUpDF$Group, levels(LookUpDF$Group))), ]
-        mdf$Sample <- factor(mdf$Sample, levels = LookUpDF$Sample, ordered = TRUE)
         
         # order fill levels according to abundance over all samples
         mdf[, fill] <- as.character(mdf[, fill])
         mdf[is.na(mdf[, fill]), fill] <- "NA"
         sums <- group_by_(mdf, fill) %>% summarise(sum_abundance = sum(Abundance)) %>% arrange(sum_abundance)
         mdf[, fill] <- factor(mdf[, fill], levels = as.character(sums[[1]]), ordered = TRUE)
+        
+        # order samples according to levels or Firmicutes
+        LookUpDF <- data.frame(Sample = sample_names(physeq), Group = sample_data(physeq)[[group_var]])
+        LookUpDF <- LookUpDF[order(match(LookUpDF$Group, levels(LookUpDF$Group))), ]
+        
+        if (order_by_firmicutes) {
+                mdf_firmicutes <- dplyr::filter(mdf, Phylum == "Firmicutes") %>% arrange_(group_var, "Abundance")
+                mdf$Sample <- factor(mdf$Sample, levels = mdf_firmicutes$Sample, ordered = TRUE)
+        } else {
+                mdf$Sample <- factor(mdf$Sample, levels = LookUpDF$Sample, ordered = TRUE)
+        }
+        
         
         
         # - define names of x axis using color_levels (which must be a named character vector) -        

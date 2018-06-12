@@ -14,7 +14,7 @@ if (taxonomic_level != "Phylum"){
 ps_ra <- phyloseq::transform_sample_counts(ps, function(x){x/sum(x)})
 
 
-bar_plot_ps_ra <- plot_sample_bars(physeq = ps_ra, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, fill = "Phylum", color_sample_names = TRUE, col_vec = phylum_colors, facet_grid = NULL)
+bar_plot_ps_ra <- plot_sample_bars(physeq = ps_ra, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, fill = "Phylum", color_sample_names = TRUE, col_vec = phylum_colors, facet_grid = NULL, order_by_firmicutes = TRUE)
 ```
 
 - a plot showing the relative abundance of the phyla

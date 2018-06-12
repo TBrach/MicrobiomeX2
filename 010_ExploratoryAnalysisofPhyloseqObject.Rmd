@@ -116,7 +116,7 @@ phylum_colors <- make_color_vector(as.character(Phyla$Phylum), QuantColors15)
 # I noticed that the following function is much faster when first doing taxglom, so I believe these tax_gloms can sepped up the run but are of course not necessary
 psP <- phyloseq::tax_glom(ps, taxrank = "Phylum", NArm = FALSE)
 ps_tcaP <- phyloseq::tax_glom(ps_tca, taxrank = "Phylum", NArm = FALSE)
-bar_plot_ps_vs_ps_tca <- plot_sample_bars_compare(physeq = psP, physeq2 = ps_tcaP, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, color_sample_names = TRUE, fill = "Phylum", col_vec = phylum_colors)
+bar_plot_ps_vs_ps_tca <- plot_sample_bars_compare(physeq = psP, physeq2 = ps_tcaP, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, color_sample_names = TRUE, fill = "Phylum", col_vec = phylum_colors, order_by_raw_counts = TRUE)
 rm(psP, ps_tcaP)
 # --
 

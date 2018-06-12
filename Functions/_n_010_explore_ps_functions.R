@@ -165,7 +165,7 @@ check_phyla_distribution <- function(physeq) {
 # generates abundance barplots (see plot_bar_own) to compare ps to ps_tca, i.e. to see how SFs adjustment affects the abundances 
 
 plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundance", group_var, color_levels, fill = NULL,
-                                     color_sample_names = TRUE, col_vec = NULL){
+                                     color_sample_names = TRUE, col_vec = NULL, order_by_raw_counts = TRUE){
         
         # - prepare mdf of ps physeq -
         if(taxa_are_rows(physeq)) { physeq <- t(physeq) }
@@ -182,11 +182,6 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         if (is.null(fill)) { fill = "Phylum"}
         
         mdf <- phyloseq::psmelt(physeq)
-        
-        # order samples according to levels
-        LookUpDF <- data.frame(Sample = sample_names(physeq), Group = sample_data(physeq)[[group_var]])
-        LookUpDF <- LookUpDF[order(match(LookUpDF$Group, levels(LookUpDF$Group))), ]
-        mdf$Sample <- factor(mdf$Sample, levels = LookUpDF$Sample, ordered = TRUE)
         
         # order fill levels according to abundance over all samples
         mdf[, fill] <- as.character(mdf[, fill])
@@ -207,21 +202,14 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         
         if (!is.factor(sample_data(physeq2)[[group_var]])) {sample_data(physeq2)[[group_var]] <- factor(sample_data(physeq2)[[group_var]], levels = names(color_levels), order = TRUE)}
         
-        if (is.null(fill)) { fill = "Phylum"}
         
         mdf2 <- phyloseq::psmelt(physeq2)
         
-        # order samples according to levels
-        LookUpDF <- data.frame(Sample = sample_names(physeq2), Group = sample_data(physeq2)[[group_var]])
-        LookUpDF <- LookUpDF[order(match(LookUpDF$Group, levels(LookUpDF$Group))), ]
-        mdf2$Sample <- factor(mdf2$Sample, levels = LookUpDF$Sample, ordered = TRUE)
-        # mdf2$Sample <- factor(mdf2$Sample, levels = c("A-15A", "A-5A", "A-2A", "A-1A", "B-15A", "B-5A", "B-2A", "B-1A"), ordered = TRUE)
-        
         # order fill levels according to abundance over all samples
-        mdf2[, fill] <- as.character(mdf2[, fill])
-        mdf2[is.na(mdf2[, fill]), fill] <- "NA"
-        sums <- group_by_(mdf2, fill) %>% summarise(sum_abundance = sum(Abundance)) %>% arrange(sum_abundance)
-        mdf2[, fill] <- factor(mdf2[, fill], levels = as.character(sums[[1]]), ordered = TRUE)
+        # mdf2[, fill] <- as.character(mdf2[, fill])
+        # mdf2[is.na(mdf2[, fill]), fill] <- "NA"
+        # sums <- group_by_(mdf2, fill) %>% summarise(sum_abundance = sum(Abundance)) %>% arrange(sum_abundance)
+        # mdf2[, fill] <- factor(mdf2[, fill], levels = as.character(sums[[1]]), ordered = TRUE)
         # --
         
         mdf$Typer <- "before"
@@ -229,6 +217,22 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         
         mdf <- rbind(mdf, mdf2)
         mdf$Typer <- factor(mdf$Typer, levels = c("before", "after SF adjustment"), ordered = TRUE)
+        
+        
+        # order samples according to group_var levels and potentially by total counts
+        LookUpDF <- data.frame(Sample = sample_names(physeq), Group = sample_data(physeq)[[group_var]])
+        LookUpDF <- LookUpDF[order(match(LookUpDF$Group, levels(LookUpDF$Group))), ]
+        
+        if (order_by_raw_counts) {
+                rawSampleSizes <- data.frame("Sample" = sample_names(physeq), "Group" = sample_data(physeq)[[group_var]], "Total" = sample_sums(physeq))
+                rawSampleSizes <- arrange(rawSampleSizes, Group, Total)
+                mdf$Sample <- factor(mdf$Sample, levels = rawSampleSizes$Sample, ordered = TRUE)
+                
+        } else {
+                mdf$Sample <- factor(mdf$Sample, levels = LookUpDF$Sample, ordered = TRUE)
+                
+        }
+        
         
         # - define names of x axis using color_levels (which must be a named character vector) -        
         colxaxis <- color_levels[LookUpDF$Group]
@@ -259,6 +263,8 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         Tr
 }
 # --
+
+
 
 
 
