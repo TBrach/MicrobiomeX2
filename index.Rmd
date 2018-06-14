@@ -1,5 +1,5 @@
 --- 
-title: "Example analysis of a phyloseq object"
+title: "Analysis of Tue's DanFunD data of the 99 samples I have worked with"
 author: "Thorsten Brach"
 date: "`r Sys.Date()`"
 site: bookdown::bookdown_site
@@ -132,9 +132,9 @@ source(file.path(functionpath, "_n_060_phylum_analysis_functions.R"))
 
 
 # - load your phyloseq object - 
-# NB: USER INPUT
-# name_phyloseq_rds <- "physeq_Men.rds"
-name_phyloseq_rds <- "physeq_Men_Hol.rds"
+# NB: USER INPUTPS
+name_phyloseq_rds <- "physeq_microdiab_ngt_Men.rds"
+
 # NB: USER INPUT
 datapath <- "./Example_phyloseq_objects"
 
@@ -144,7 +144,9 @@ if(! file.exists(file.path(datapath, name_phyloseq_rds))){
 }
 
 ps <- readRDS(file.path(datapath, name_phyloseq_rds))
-# --
+
+
+
 
 # - Define the group variable for sample comparisons -
 # NB: USER INPUT
@@ -227,7 +229,7 @@ if (!is.null(taxonomic_level) && !(taxonomic_level %in% colnames(tax_table(ps)))
 
 # - Filtering inputs -
 # NB: user input
-prevalence <- 0 # in percent, for prevalence filtering of taxa 
+prevalence <- 10 # in percent, for prevalence filtering of taxa 
 # NB: user input
 min_obs <- 0L # in counts, a taxon will be considered present (for prevalence) if count > min_obs
 # NB: user input
@@ -282,12 +284,12 @@ if (!is.numeric(rare_max_total)) {
 # --
 
 # - beta diversity inputs -
-dist_methods <- c("bray") # otions: see unlist(phyloseq::distanceMethodList)
+dist_methods <- c("bray", "jsd") # otions: see unlist(phyloseq::distanceMethodList)
 coord_cor <- FALSE # adjustment of the axis representation in ordination plots
 
 # Test beta diversity inputs and set invalid inputs to defaults
 if (! all(dist_methods %in% unlist(phyloseq::distanceMethodList))) {
-       dist_methods <- c("bray")
+       dist_methods <- c("bray", "jsd")
 }
 
 if (! is.logical(coord_cor)){

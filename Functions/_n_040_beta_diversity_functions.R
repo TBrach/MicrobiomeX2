@@ -420,10 +420,12 @@ calc_ordination_from_distances <- function(physeq, group_var, dist_list, color_l
                                 fill_colors <- make_color_vector(DF_taxa$Phylum, viridis(length(unique(DF_taxa$Phylum))))
                         }
                         
+                        DF_taxa$Phylum[is.na(DF_taxa$Phylum)] <- "NA" #pools all NA
                         DF_taxa$Phylum <- factor(DF_taxa$Phylum, levels = names(fill_colors), ordered = TRUE)
                         
                 } else {
                         fill_colors <- phylum_colors
+                        DF_taxa$Phylum[is.na(DF_taxa$Phylum)] <- "NA" #pools all NA
                         DF_taxa$Phylum <- factor(DF_taxa$Phylum, levels = names(fill_colors), ordered = TRUE)
                 }
                 

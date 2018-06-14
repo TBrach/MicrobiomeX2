@@ -14,13 +14,17 @@ if (taxonomic_level != "Phylum"){
 ps_ra <- phyloseq::transform_sample_counts(ps, function(x){x/sum(x)})
 
 
-bar_plot_ps_ra <- plot_sample_bars(physeq = ps_ra, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, fill = "Phylum", color_sample_names = TRUE, col_vec = phylum_colors, facet_grid = NULL, order_by_firmicutes = TRUE)
+bar_plot_ps_ra <- plot_sample_bars(physeq = ps_ra, x = "Sample", y = "Abundance", group_var = group_var, color_levels = color_levels, fill = "Phylum", color_sample_names = TRUE, col_vec = phylum_colors, facet_grid = NULL)
 ```
 
 - a plot showing the relative abundance of the phyla
 
 ```{r, fig.width = 14, fig.height = 7, warning = FALSE, message = FALSE, echo = FALSE}
 bar_plot_ps_ra
+
+# pdf(file = "barRA.pdf", width = 11.5, height = 6)
+# bar_plot_ps_ra
+# dev.off()
 ```
 
 - **Write your conclusion here:** *e.g.: often a few samples look very weird because they have almost no Bacteroidetes, or Firmicutes Bacteroidetes difference is clear*
@@ -37,15 +41,18 @@ bar_plot_ps_ra
 physeq_to_test <- ps
 # --
 
-taxa_annotation <- get_taxon_names(as.data.frame(tax_table(ps)))
+taxa_annotation <- get_taxon_names(as.data.frame(tax_table(ps))[,2:7])
+taxa_annotation <- make.unique(taxa_annotation)
+taxa_order <- c(names(phylum_colors), taxa_annotation[!taxa_annotation %in% names(phylum_colors)])
 
 
 # - plot Firmicutes to all other phyla ratio plots NB: you could change taxa_den to maybe only Bacteroidetes -
 # NB: if you would like the order based on pValues/significance choose tax_order = NULL
-FirmicutesRatioPlots <- plot_taxa_ratios_AllLevels(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, tax_names = taxa_annotation, taxa_nom = "Firmicutes", taxa_den = NULL, tax_order = names(phylum_colors), test = "wilcox.test", p_adjust_method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
+FirmicutesRatioPlots <- plot_taxa_ratios_AllLevels(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, tax_names = taxa_annotation, taxa_nom = "Firmicutes", taxa_den = NULL, tax_order = taxa_order, test = "wilcox.test", p_adjust_method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
 # NB: you can use the Single version if color_levels is only two levels and you do not want the bars.
 # FirmicutesRatioPlots <- plot_taxa_ratiosSingle(physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, tax_names = taxa_annotation, taxa_nom = "Firmicutes", taxa_den = NULL, tax_order = names(phylum_colors), test = "wilcox.test", p_adjust_method = "fdr", symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
 # --
+
 ```
 
 - **NB: the plot only shows taxa for which the statistical test (t or wilcoxon) was possible, and only samples for which both taxa were present!**
@@ -54,6 +61,10 @@ FirmicutesRatioPlots <- plot_taxa_ratios_AllLevels(physeq = physeq_to_test, grou
 
 ```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE, echo = FALSE}
 FirmicutesRatioPlots[[6]] # in this version I plot the boxplot again the logged ones
+
+# pdf(file = "ratioPlot.pdf", width = 7, height = 7)
+# FirmicutesRatioPlots[[6]]
+# dev.off()
 ```
 
 - the p-vals for the ratios
@@ -82,11 +93,13 @@ physeq_to_test <- ps
 # NB: calculates Matrixes including all samples in physeq (alternative use calculate_raw_TbTmatrixesSingle)
 raw_TbTmatrixes <- calculate_raw_TbTmatrixes(physeq = physeq_to_test)
 # raw_TbTmatrixes <- lapply(raw_TbTmatrixes, log10)
-taxa_annotation <- get_taxon_names(as.data.frame(tax_table(physeq_to_test)))
+taxa_annotation <- get_taxon_names(as.data.frame(tax_table(ps))[,2:7])
+taxa_annotation <- make.unique(taxa_annotation)
+taxa_order <- c(names(phylum_colors), taxa_annotation[!taxa_annotation %in% names(phylum_colors)])
 # --
 
 
-TbT_tile <- create_raw_TbT_TilePlot(TbTmatrixes = raw_TbTmatrixes, physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, signi_level = 0.05, tax_names = taxa_annotation, tax_order = names(phylum_colors), test = "wilcoxon", p_adjust_method = "none")
+TbT_tile <- create_raw_TbT_TilePlot(TbTmatrixes = raw_TbTmatrixes, physeq = physeq_to_test, group_var = group_var, color_levels = color_levels, signi_level = 0.05, tax_names = taxa_annotation, tax_order = taxa_order, test = "wilcoxon", p_adjust_method = "none")
 ```
 
 
@@ -95,6 +108,10 @@ TbT_tile <- create_raw_TbT_TilePlot(TbTmatrixes = raw_TbTmatrixes, physeq = phys
 
 ```{r, fig.width = 8, fig.height = 8, warning = FALSE, message = FALSE, echo = FALSE}
 TbT_tile
+
+# pdf(file = "tilePlot.pdf", width = 6.2, height = 6)
+# TbT_tile
+# dev.off()
 ```
 
 - **Write your conclusion here:** *e.g.: very few ratios differ. Note that the table is symmetrical, it should be.*

@@ -49,9 +49,11 @@ TrList_pcoa <- c(rbind(TrList_samples, TrList_taxa)) # It works to combine lists
 
 - **Distance boxplots**
 
-```{r, fig.width = 14, fig.height = 10*length(dist_analysis_list[["DistanceBoxplots"]]), warning = FALSE, message = FALSE, echo = FALSE}
+```{r, fig.width = 7, fig.height = 5*length(dist_analysis_list[["DistanceBoxplots"]]), warning = FALSE, message = FALSE, echo = FALSE}
 # pdf(file = "beta_p_0prev.pdf", width = 10, height = 8)
 do.call("grid.arrange", c(dist_analysis_list[["DistanceBoxplots"]], nrow = length(dist_analysis_list[["DistanceBoxplots"]])))
+# pdf(file = "jsdbox.pdf", width = 6, height = 6)
+# dist_analysis_list[["DistanceBoxplots"]][[2]]
 # dev.off()
 ```
 
@@ -76,10 +78,11 @@ for (i in 1:length(adonis_list)){
 
 - **Ordination Plots**
 
-```{r, fig.width = 14, fig.height = 3.5*length(TrList_samples), warning = FALSE, message = FALSE, echo = FALSE}
+```{r, fig.width = 14, fig.height = 6*length(TrList_samples), warning = FALSE, message = FALSE, echo = FALSE}
 #pdf(file = "pcoa_ra.pdf", width = 10, height = 8)
 do.call("grid.arrange", c(TrList_pcoa, ncol = 2))
-# TrList_ra[[1]]
+# pdf(file = "jsdpcoa.pdf", width = 6, height = 5)
+# TrList_pcoa[[3]]
 # dev.off()
 ```
 

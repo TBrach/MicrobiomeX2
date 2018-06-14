@@ -25,7 +25,7 @@ visualize_filtering <- function(physeq, prevalence, taxa_sums_quantile, phylum_c
         
         if (!is.null(phylum_colors)){
                 df_ab_prev[[colori]] <- as.character(df_ab_prev[[colori]])
-                df_ab_prev[[colori]][is.na(df_ab_prev[[colori]])] <- "NA"
+                df_ab_prev[[colori]][is.na(df_ab_prev[[colori]])] <- "NA" # NB: pools NAs
                 if (!all(unique(df_ab_prev[[colori]]) %in% names(phylum_colors))){
                         stop("provided phylum_colors did not cover all Phyla in physeq")
                 }

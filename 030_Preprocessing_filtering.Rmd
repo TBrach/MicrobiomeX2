@@ -25,15 +25,18 @@ ps_filt_ra <- phyloseq::transform_sample_counts(ps_filt, function(x){x/sum(x)})
 # --
 
 # - Generate a visual overview of the filtering step -
-filterList <- visualize_filtering(physeq = ps_tca, prevalence = prevalence, taxa_sums_quantile = taxa_sums_quantile)
+filterList <- visualize_filtering(physeq = ps_tca, prevalence = prevalence, taxa_sums_quantile = taxa_sums_quantile, phylum_colors = phylum_colors)
 # --
 ```
 
 
 - taxa within the shaded area were removed by the filtering:
 
-```{r, fig.width = 8, fig.height = 6, warning = FALSE, message = FALSE, echo = FALSE}
+```{r, fig.width = 7, fig.height = 5, warning = FALSE, message = FALSE, echo = FALSE}
 filterList[[1]]
+# pdf(file = "filter.pdf", width = 7, height = 5)
+# filterList[[1]]
+# dev.off()
 ```
 
 ```{r, fig.width = 10, fig.height = 8, warning = FALSE, message = FALSE, echo = FALSE}

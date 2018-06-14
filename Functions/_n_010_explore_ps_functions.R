@@ -156,6 +156,55 @@ check_phyla_distribution <- function(physeq) {
 
 
 
+# --
+#######################################
+### FUNCTION: check_phyla_distribution_NA#
+#######################################
+# NB: throws error if "Phylum" is not in colnames(tax_table(physeq))
+# outputs a data.frame, summarising the taxa distribution over the different phyla.
+## INPUT:
+# physeq: physeq object
+## OUTPUT:
+# data.frame, summarising the taxa distribution over the different phyla.
+# the Phyla are ordered so the Phylum with most counts (PC_of_counts) is on top, no of taxa is used to break ties in the ordering
+# columns: PC stands for percentage, 
+# mean/median_taxa_sum are the mean/median of the taxa_sums (total counts over all samples) of the taxa in the respective phylum
+# other columns should be clear
+
+check_phyla_distribution_NA <- function(physeq) {
+        
+        
+        if (phyloseq::taxa_are_rows(physeq)) {
+                physeq <- t(physeq)
+        }
+        
+        df_ab_prev <- data.frame(Taxon_No = 1:ntaxa(physeq), 
+                                 total_counts = taxa_sums(physeq),
+                                 prevalence = colSums(as(otu_table(physeq), "matrix") != 0))
+        
+        
+        df_ab_prev <- cbind(df_ab_prev, tax_table(physeq))
+        df_ab_prev$Phylum <- as.character(df_ab_prev$Phylum)
+        df_ab_prev$Phylum[is.na(df_ab_prev$Phylum)] <- paste(df_ab_prev$Kingdom[is.na(df_ab_prev$Phylum)], "_NA", sep = "")
+        
+        PhylaDistribution <- dplyr::summarise(group_by(df_ab_prev, Phylum), 
+                                              taxa = n(), 
+                                              PC_of_taxa = round(100*taxa/ntaxa(ps),1),
+                                              PC_of_counts = round(100*sum(total_counts)/sum(otu_table(physeq)), 1),
+                                              PC_of_prevalence = round(100*sum(prevalence)/sum(otu_table(physeq) != 0), 1),
+                                              mean_taxa_sum = round(mean(total_counts)),
+                                              median_taxa_sum = round(median(total_counts)),
+                                              mean_prevalence_in_PC = round(100*mean(prevalence)/nsamples(ps), 1)) %>% 
+                arrange(desc(PC_of_counts), desc(taxa), desc(PC_of_prevalence))
+        
+        PhylaDistribution
+        
+}
+# --
+
+
+
+
 
 
 # --
@@ -185,7 +234,7 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         
         # order fill levels according to abundance over all samples
         mdf[, fill] <- as.character(mdf[, fill])
-        mdf[is.na(mdf[, fill]), fill] <- "NA"
+        mdf[is.na(mdf[, fill]), fill] <- "NA" # NB: pools all NA
         sums <- group_by_(mdf, fill) %>% summarise(sum_abundance = sum(Abundance)) %>% arrange(sum_abundance)
         mdf[, fill] <- factor(mdf[, fill], levels = as.character(sums[[1]]), ordered = TRUE)
         
@@ -206,10 +255,10 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         mdf2 <- phyloseq::psmelt(physeq2)
         
         # order fill levels according to abundance over all samples
-        # mdf2[, fill] <- as.character(mdf2[, fill])
-        # mdf2[is.na(mdf2[, fill]), fill] <- "NA"
+        mdf2[, fill] <- as.character(mdf2[, fill])
+        mdf2[is.na(mdf2[, fill]), fill] <- "NA"
         # sums <- group_by_(mdf2, fill) %>% summarise(sum_abundance = sum(Abundance)) %>% arrange(sum_abundance)
-        # mdf2[, fill] <- factor(mdf2[, fill], levels = as.character(sums[[1]]), ordered = TRUE)
+        mdf2[, fill] <- factor(mdf2[, fill], levels = as.character(sums[[1]]), ordered = TRUE)
         # --
         
         mdf$Typer <- "before"
@@ -255,7 +304,7 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
         Tr <- Tr + 
                 geom_bar(stat = "identity", position = "stack") +
                 theme_bw() +
-                scale_fill_manual(values = fill_colors) +
+                scale_fill_manual(values = fill_colors, na.value = "red") +
                 xlab("") +
                 facet_wrap(~ Typer, ncol = 1) +
                 theme(axis.text.x = element_text(angle = 90, hjust = 0, vjust = 0, colour = colxaxis))
@@ -512,7 +561,7 @@ plot_correlations_abundance_prev_sparsity <- function(physeq, col = NULL, col_ve
                 
                 if (!is.null(col_vec)){
                         df_ab_prev[[col]] <- as.character(df_ab_prev[[col]])
-                        df_ab_prev[[col]][is.na(df_ab_prev[[col]])] <- "NA"
+                        df_ab_prev[[col]][is.na(df_ab_prev[[col]])] <- "NA" # NB: pools all NA
                         if (length(col_vec) != length(unique(df_ab_prev[[col]]))){
                                 stop("provided col_vec did not fit in length to the col variable")
                         }

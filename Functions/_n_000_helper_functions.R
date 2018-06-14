@@ -73,6 +73,8 @@ assign_default_colors <- function(info_df, variable_name){
 #######################################
 # give a character vector or factor as input together with a color Palette
 # outputs a named color vector, using the factor levels or the unique(character vector)
+# The change to "NA" is to have NAs in the order I want them to be, if using na.value in ggplot it is always at the last position
+
 
 make_color_vector <- function(in_vector, col_pal){
         
@@ -81,6 +83,9 @@ make_color_vector <- function(in_vector, col_pal){
         } else {
                 vec_names <- unique(as.character(in_vector))
         }
+        
+        vec_names[is.na(vec_names)] <- "NA"
+        
         
         if (length(col_pal) < length(vec_names)) {
                 stop("not enough colors in your color palette")   

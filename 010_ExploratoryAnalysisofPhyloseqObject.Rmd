@@ -19,11 +19,15 @@ taxa_before <- ntaxa(ps)
 
 
 
-## Removal of taxa that were not assigned to phylum level (if chosen) 
+## Removal of taxa that were not assigned to kingdom level and to phylum level (if chosen) 
 
 - *NB: only if you chose "yes" for "phylum_NA_removal", your choice was: `r phylum_NA_removal`*
 
 ```{r, echo = FALSE, message=FALSE}
+# - remove taxa with Kingdom == NA -
+ps <- phyloseq::subset_taxa(ps, !is.na(Kingdom))
+# --
+
 # - remove taxa with Phylum == NA -
 if (phylum_NA_removal == "yes"){
         ps <- phyloseq::subset_taxa(ps, !is.na(Phylum))
@@ -78,8 +82,12 @@ ps_tca <- library_size_adjust_list[[1]]
 
 ## Tabular overview of phyla distribution based on size adjusted counts
 
+- **NB: in the table below I show all NA Phyla (if not removed), in all following plots these taxa will be pooled (usually very few)**
+
+
 ```{r, echo = FALSE, message=FALSE}
-Phyla <- check_phyla_distribution(ps_tca)
+Phyla <- check_phyla_distribution_NA(ps_tca)
+PhylaForColor <- check_phyla_distribution(ps_tca) # NB: for all future plots I do not distinguish between the NA Phyla!
 ```
 
 - Table \@ref(tab:phyla-before-adjust) shows an overview of the phyla representation in the data set ordered by counts > taxa > prevalence. So the most abundant phylum with most taxa (= `r{taxonomic_level}`) and most prevalence is on top.
@@ -101,7 +109,7 @@ knitr::kable(Phyla, caption = "Phyla Distribution")
 
 ```{r, warning = FALSE, message = FALSE, echo = FALSE}
 # - Define here phylum colors for later plots based on the phyla distribution
-phylum_colors <- make_color_vector(as.character(Phyla$Phylum), QuantColors15)
+phylum_colors <- make_color_vector(as.character(PhylaForColor$Phylum), QuantColors15)
 ```
 
 
@@ -128,6 +136,9 @@ SFList <- plot_sizeFactors(physeq = ps,SFs = SFs, group_var = group_var, color_l
 
 ```{r, fig.width = 14, fig.height = 14, warning = FALSE, message = FALSE, echo = FALSE}
 bar_plot_ps_vs_ps_tca
+# pdf(file = "SFBars.pdf", width = 10.5, height = 6.5)
+# bar_plot_ps_vs_ps_tca
+# dev.off()
 ```
 
 - the following plots show the distribution of the size factors between the groups and how they correlate with sample size/library size.
@@ -135,6 +146,9 @@ bar_plot_ps_vs_ps_tca
 
 ```{r, fig.width = 14, fig.height = 6, warning = FALSE, message = FALSE, echo = FALSE}
 grid.arrange(SFList[[2]], SFList[[3]], ncol = 2)
+# pdf(file = "SFlm.pdf", width = 5, height = 4)
+# SFList[[3]]
+# dev.off()
 ```
 
 - **Write your conclusion here:** *e.g.: size factors should be around 1 and correlate a bit with sample_sums().*
@@ -170,6 +184,10 @@ rm(assignment_distribution)
 assign_vs_ab <- check_assignment_vs_abundance(ps_tca)
 
 assign_vs_prev <- check_assignment_vs_prevalence(ps_tca)
+
+# pdf(file = "assignment.pdf", width = 6, height = 4)
+# assign_vs_prev[[2]]
+# dev.off()
 ```
 
 ```{r, fig.width = 14, fig.height = 10, warning = FALSE, message = FALSE, echo = FALSE}

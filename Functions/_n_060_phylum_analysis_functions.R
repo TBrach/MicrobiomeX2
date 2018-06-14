@@ -35,7 +35,7 @@ plot_sample_bars <- function(physeq, x = "Sample", y = "Abundance", group_var, c
         
         # order fill levels according to abundance over all samples
         mdf[, fill] <- as.character(mdf[, fill])
-        mdf[is.na(mdf[, fill]), fill] <- "NA"
+        mdf[is.na(mdf[, fill]), fill] <- "NA" # NB: pools all AN
         sums <- group_by_(mdf, fill) %>% summarise(sum_abundance = sum(Abundance)) %>% arrange(sum_abundance)
         mdf[, fill] <- factor(mdf[, fill], levels = as.character(sums[[1]]), ordered = TRUE)
         

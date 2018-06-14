@@ -24,8 +24,11 @@ SampleSumList <- boxplot_sampleSums(physeq = ps, group_var = group_var, color_le
                                     symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")))
 ```
 
-```{r, fig.width = 7, fig.height = 5, warning = FALSE, message = FALSE, echo = FALSE}
+```{r, fig.width = 5, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
 SampleSumList[["Tr"]]
+# pdf(file = "SampleSums.pdf", width = 4, height = 4)
+# SampleSumList[["Tr"]]
+# dev.off()
 ```
 
 - **Write your conclusion here:** *e.g.: no significant differences in the sample_sums between the groups which is good news for comparing alpha-diversity on raw counts.*
@@ -79,6 +82,9 @@ TrList <- TrList[order(names(TrList))] # to get the plots in the right order
 ```{r, fig.width = 14, fig.height = (length(TrList)/3)*5, warning = FALSE, message = FALSE, echo = FALSE}
 do.call("grid.arrange", c(TrList, ncol = 3))
 rm(TrList, alpha_div_lmPlots, alpha_div_boxplots)
+# pdf(file = "alpha_raw.pdf", width = 11.2, height = 7.5)
+# do.call("grid.arrange", c(TrList, ncol = 3))
+# dev.off()
 ```
 
 - p.values comparing alpha diversities between the levels in group_var
@@ -147,6 +153,9 @@ TrList <- TrList[order(names(TrList))] # to get the plots in the right order
 ```{r, fig.width = 14, fig.height = (length(TrList)/3)*5, warning = FALSE, message = FALSE, echo = FALSE}
 do.call("grid.arrange", c(TrList, ncol = 3))
 rm(TrList, alpha_div_lmPlots, alpha_div_boxplots)
+# pdf(file = "alpha_rarefied.pdf", width = 11.2, height = 7.5)
+# do.call("grid.arrange", c(TrList, ncol = 3))
+# dev.off()
 ```
 
 - p.values comparing alpha diversities between the levels in group_var
@@ -178,6 +187,9 @@ rarefaction_curves <- raref_curve_richness(physeq = ps, group_var = group_var, m
 
 ```{r, fig.width = 12, fig.height = 20, warning = FALSE, message = FALSE, echo = FALSE}
 grid.arrange(rarefaction_curves[["Tr_richness_col"]], rarefaction_curves[["Tr_richness_group"]], rarefaction_curves[["Tr_richness_grad"]], ncol = 1)
+# pdf(file = "rare_curves.pdf", width = 6, height =4.5)
+# rarefaction_curves[["Tr_richness_group"]]
+# dev.off()
 ```
 
 - The used rare_max_total was `r rare_max_total`
@@ -193,7 +205,7 @@ grid.arrange(rarefaction_curves[["Tr_richness_col"]], rarefaction_curves[["Tr_ri
 ```{r, message = FALSE, warning = FALSE, echo = FALSE}
 breakawayResults <- calc_breakaway_from_phyloseq(ps, group_var, color_levels)
 # NB: in case breakaway used Chao-Bunge, it seems the estimate is the number of the missing taxa and not the observed estimate. To correct for this:
-breakawayResults$est[breakawayResults$est < breakawayResults$observed] <- breakawayResults$observed[breakawayResults$est < breakawayResults$observed] + breakawayResults$est[breakawayResults$est < breakawayResults$observed]
+breakawayResults$est[!is.na(breakawayResults$est) & breakawayResults$est < breakawayResults$observed] <- breakawayResults$observed[!is.na(breakawayResults$est) & breakawayResults$est < breakawayResults$observed] + breakawayResults$est[!is.na(breakawayResults$est) & breakawayResults$est < breakawayResults$observed]
 resultList <- analyse_breakaway_results(breakawayResults, group_var, color_levels, test = "t.test")
 breakawayTr <- resultList[[2]]
 breakawayDF <- resultList[[1]][[1]]
@@ -204,6 +216,9 @@ breakawayDF <- resultList[[1]][[1]]
 
 ```{r, fig.width = 6, fig.height = 4, warning = FALSE, message = FALSE, echo = FALSE}
 breakawayTr
+# pdf(file = "breakaway.pdf", width = 5, height =4.5)
+# breakawayTr
+# dev.off()
 ```
 
 - The following table shows the breakaway p-values obtained with breakaway::beta. 
@@ -212,11 +227,5 @@ breakawayTr
 knitr::kable(breakawayDF)
 ```
 
-- The following table shows the breakaway models that were used to calculate the richness estimates of the different samples. 
 
-```{r, warning = FALSE, message = FALSE, echo = FALSE}
-ModelsUsed <- as.data.frame(table(breakawayResults$name))
-colnames(ModelsUsed) <- c("Model", "Used for No Samples")
-knitr::kable(ModelsUsed)
-```
 
