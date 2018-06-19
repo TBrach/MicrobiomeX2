@@ -87,7 +87,7 @@ ps_tca <- library_size_adjust_list[[1]]
 
 ```{r, echo = FALSE, message=FALSE}
 Phyla <- check_phyla_distribution_NA(ps_tca)
-PhylaForColor <- check_phyla_distribution(ps_tca) # NB: for all future plots I do not distinguish between the NA Phyla!
+PhylaForColor <- check_phyla_distribution(ps_tca) # NB: for all future plots I do not distinguish between the NA Phyla and pool them!
 ```
 
 - Table \@ref(tab:phyla-before-adjust) shows an overview of the phyla representation in the data set ordered by counts > taxa > prevalence. So the most abundant phylum with most taxa (= `r{taxonomic_level}`) and most prevalence is on top.

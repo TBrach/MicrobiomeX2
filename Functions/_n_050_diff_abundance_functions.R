@@ -178,7 +178,10 @@ format_hit_table <- function (result_df, p.adjust.threshold = 0.1, p.adjust.meth
         
         df <- result_df[1:keepTaxa,]
         
-        df$Annotation <- get_taxon_names(df)
+        taxa_annotation <- get_taxon_names(df)
+        taxa_annotation <- strsplit(taxa_annotation, split = "/")
+        taxa_annotation <- sapply(taxa_annotation, `[`, 1)
+        df$Annotation <- taxa_annotation
         
         df <- select(df, Taxon, Annotation, p_val, p_val_adj, signi, signi_adj, direction, colnames(df)[!(colnames(df) %in% c("Taxon", "Annotation", "p_val", "p_val_adj", "signi", "signi_adj", "direction"))])
         

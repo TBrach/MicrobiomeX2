@@ -141,7 +141,7 @@ check_phyla_distribution <- function(physeq) {
         
         PhylaDistribution <- dplyr::summarise(group_by(df_ab_prev, Phylum), 
                                               taxa = n(), 
-                                              PC_of_taxa = round(100*taxa/ntaxa(ps),1),
+                                              PC_of_taxa = round(100*taxa/ntaxa(physeq),1),
                                               PC_of_counts = round(100*sum(total_counts)/sum(otu_table(physeq)), 1),
                                               PC_of_prevalence = round(100*sum(prevalence)/sum(otu_table(physeq) != 0), 1),
                                               mean_taxa_sum = round(mean(total_counts)),
@@ -189,7 +189,7 @@ check_phyla_distribution_NA <- function(physeq) {
         
         PhylaDistribution <- dplyr::summarise(group_by(df_ab_prev, Phylum), 
                                               taxa = n(), 
-                                              PC_of_taxa = round(100*taxa/ntaxa(ps),1),
+                                              PC_of_taxa = round(100*taxa/ntaxa(physeq),1),
                                               PC_of_counts = round(100*sum(total_counts)/sum(otu_table(physeq)), 1),
                                               PC_of_prevalence = round(100*sum(prevalence)/sum(otu_table(physeq) != 0), 1),
                                               mean_taxa_sum = round(mean(total_counts)),

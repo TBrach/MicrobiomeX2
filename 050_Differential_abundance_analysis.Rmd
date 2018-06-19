@@ -39,7 +39,7 @@ if (!is.null(shape)){
 # --
 
 # - get a more informative taxa annotation of the hits -
-taxa_annotation <- get_taxon_names(taxa_hit_df)
+taxa_annotation <- taxa_hit_df$Annotation
 # --
 
 ```
@@ -50,7 +50,7 @@ taxa_annotation <- get_taxon_names(taxa_hit_df)
 - list the most differently "abundant" taxa (**NB: even if no taxon is significant the 10 with the lowest p_values are shown. Max 40 are shown**)
 
 ```{r, warning = FALSE, message = FALSE, echo = FALSE, results = "asis"}
-knitr::kable(head(taxa_hit_df, 40), caption = "taxa with most different prevalence between the groups")
+knitr::kable(head(taxa_hit_df, 40), caption = "taxa with most different prevalence between the groups", row.names = FALSE)
 ```
 
 - show heat map of the most differently "abundant = prevalent" taxa between the groups
@@ -111,7 +111,8 @@ if (!is.null(shape)){
 # --
 
 # - get a more informative taxa annotation of the hits -
-taxa_annotation <- get_taxon_names(taxa_hit_df)
+taxa_annotation <- taxa_hit_df$Annotation
+# --
 taxa_annotation1 <- paste(taxa_annotation, " (", taxa_hit_df$signi_adj, ")", sep = "")
 # --
 
@@ -127,7 +128,7 @@ violin_plots <- plot_hittaxa_boxAndviolin(physeq = physeq_to_test, group_var = g
 - list the most differently "abundant" taxa (**NB: even if no taxon is significant the 10 with the lowest p_values are shown. Max 40 are shown**)
 
 ```{r, warning = FALSE, message = FALSE, echo = FALSE, results = "asis"}
-knitr::kable(head(taxa_hit_df, 40), caption = "taxa with most different prevalence between the groups")
+knitr::kable(head(taxa_hit_df, 40), caption = "taxa with most different prevalence between the groups", row.names = FALSE)
 ```
 
 - show heat map of the most differently abundant taxa between the groups (max 40 are shown)
@@ -204,7 +205,8 @@ if (!is.null(shape)){
 # --
 
 # - get a more informative taxa annotation of the hits -
-taxa_annotation <- get_taxon_names(taxa_hit_df)
+taxa_annotation <- taxa_hit_df$Annotation
+# --
 taxa_annotation1 <- paste(taxa_annotation, " (", taxa_hit_df$signi_adj, ")", sep = "")
 # --
 
@@ -222,7 +224,7 @@ violin_plots <- plot_hittaxa_boxAndviolin(physeq = physeq_to_test, group_var = g
 - list the most differently "abundant" taxa (**NB: even if no taxon is significant the 10 with the lowest p_values are shown. Max 40 are shown**)
 
 ```{r, warning = FALSE, message = FALSE, echo = FALSE, results = "asis"}
-knitr::kable(head(taxa_hit_df, 40), caption = "taxa with most different prevalence between the groups")
+knitr::kable(head(taxa_hit_df, 40), caption = "taxa with most different prevalence between the groups", row.names = FALSE)
 ```
 
 - show heat map of the most differently abundant taxa between the groups (max 40 are shown)
