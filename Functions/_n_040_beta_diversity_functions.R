@@ -330,7 +330,7 @@ loop_vegan_adonis <- function(dist_obj, group_fac, nperm = 999,
 # fully based on phyloseq::ordinate and phyloseq::plot_ordination
 
 
-calc_ordination_from_distances <- function(physeq, group_var, dist_list, color_levels, ordination_type = "PCoA", shape = NULL, coord_cor = FALSE, phylum_colors = NULL){
+calc_ordination_from_distances <- function(physeq, group_var, dist_list, color_levels, ordination_type = "PCoA", shape = NULL, coord_cor = FALSE, phylum_colors = NULL, paired_var = NULL){
         
         
         
@@ -338,6 +338,12 @@ calc_ordination_from_distances <- function(physeq, group_var, dist_list, color_l
         if(! group_var %in% colnames(sample_data(physeq))) {
                 stop("The given group_var is not a variable in the sample data of the phyloseq object.")
         }
+        
+        
+        if(!is.null(paired_var) && !paired_var %in% colnames(sample_data(physeq))) {
+                stop("The given paired_var is not a variable in the sample data of the phyloseq object.")
+        }
+        
         
         if (!all(names(color_levels) %in% unique(sample_data(physeq)[[group_var]]))) {
                 stop("Not all names in names(color_levels)are actually levels in the group_var column.")
@@ -380,6 +386,10 @@ calc_ordination_from_distances <- function(physeq, group_var, dist_list, color_l
                         scale_color_manual("", values = color_levels) +
                         theme_bw() +
                         ggtitle(names(dist_list)[i])
+                
+                if (!is.null(paired_var)) {
+                        Tr <- Tr + geom_line(aes_string(group = paired_var), col = cbPalette[1])
+                }
                 
                 # for labelling axes
                 if (ordination_type == "PCoA" || ordination_type == "NMDS") {

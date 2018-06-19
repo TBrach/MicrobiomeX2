@@ -123,7 +123,7 @@ calc_alphadiv_plusLmResids <- function(physeq, measures = c("Observed", "Shannon
 
 calc_pVals_alphdiv <- function(DF_alpha, measures, group_var, compare, test = "t.test", 
                                symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")),
-                               p.adjust.method = "BH"){
+                               p.adjust.method = "BH", paired = FALSE){
         
         if(! group_var %in% colnames(DF_alpha)) {
                 stop("The given group_var is not a variable in the DF_alpha.")
@@ -140,7 +140,7 @@ calc_pVals_alphdiv <- function(DF_alpha, measures, group_var, compare, test = "t
         ttestList <- list()
         for (i in 1:length(y_columns)){
                 comparison <- as.formula(paste(colnames(DF_alpha)[y_columns[i]], " ~ ", group_var, sep = ""))
-                ttestList[[i]] <- ggpubr::compare_means(formula = comparison, data = DF_alpha, method = test, p.adjust.method = p.adjust.method, symnum.args = symnum.args)
+                ttestList[[i]] <- ggpubr::compare_means(formula = comparison, data = DF_alpha, method = test, p.adjust.method = p.adjust.method, symnum.args = symnum.args, paired = paired)
         }
         alpha_div_ttests <- do.call("rbind", ttestList) %>% arrange(.y.)
 }
