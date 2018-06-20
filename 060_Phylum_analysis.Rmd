@@ -70,7 +70,7 @@ FirmicutesRatioPlots[[6]] # in this version I plot the boxplot again the logged 
 - the p-vals for the ratios
 
 ```{r, warning = FALSE, message = FALSE, echo = FALSE}
-FirmicutesRatioPlots[["pValsLog"]] 
+knitr::kable(FirmicutesRatioPlots[["pValsLog"]]) 
 ```
 
 

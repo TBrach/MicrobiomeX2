@@ -1,5 +1,5 @@
 --- 
-title: "Analysis of Tue's DanFunD data of the 99 samples I have worked with"
+title: "Example microbiomeX2 using microdiab data"
 author: "Thorsten Brach"
 date: "`r Sys.Date()`"
 site: bookdown::bookdown_site
@@ -26,21 +26,20 @@ link-citations: yes
 
 ## How the document works
 
-The document illustrates a streamlined analysis of microbiome data starting with a phyloseq object. 
-The analysis includes exploratory analysis, alpha-diversity analysis, beta-diversity (ordination) analysis, and comparison of phyla ratios.
+The document illustrates a analysis of microbiome data starting with a phyloseq object. 
 
-To perform the analysis with your own data, or to recapitulate this example analysis on your own computer:
+To perform the analysis:
 
 - Where to start?: 
     - The pipeline makes use of "R Projects" and the "bookdown package". 
-        - Start a new project in R Studio using this folder as "from existing directory". Then open the index.Rmd file in R studio.
+        - Start a new project in R Studio using this folder as "from existing directory". Then open the index.Rmd file in R studio (you probably did:)).
         - When you later build the final document with bookdown, all Rmd files (the Chapters) in the folder are considered in alphabetic order. For more info: <https://www.rstudio.com/resources/webinars/introducing-bookdown/>
 - What you need?:
-    - make sure that all packages under **Load packages (and color schemes)** are installed and up to date.
+    - make sure that all packages under **Load packages** are installed and up to date.
     - you need a prepared phyloseq object, saved as **.rds** file on your computer (saveRDS command) (best in the project folder). Just like the one in Example_phyloseq_objects. Info: <https://joey711.github.io/phyloseq/import-data.html>
 - What then?
     - Adjust the input parameters for the analysis under **Load phyloseq object and set input**. I hope most input variables are self-explanatory in particular with the annotation given in the section. As a help: all lines where user input is required or possible are marked with **NB: USER INPUT** and **NB: user input**, respectively
-       - NB: In the section: **Load phyloseq object and set input**, I intentionally put the input tests directly after the input is given. That way it takes longer to write the input. I did so anyway, because I think it is a good idea to go once through the entire section for each analysis. It helps in understanding the input and discovering potential problems.
+       - NB: In the section: **Load phyloseq object and set input**, I intentionally put the input tests directly after the input is given. That way it takes longer to fill out the input. I did so anyway, because I think it is a good idea to go once through the entire section for each analysis. It helps in understanding the input and discovering potential problems.
 - How to run it?
     - When you are certain about the input, you build the document in Rstudio with bookdown. You do so under Build >> Build All. Or by using the Build tab >> Build Book. This will run the entire analysis and produce the output document.
         - By default I use bookdown::html_document2, so an html file **_main.html (look at it in your browser)** is created.
@@ -52,18 +51,18 @@ To perform the analysis with your own data, or to recapitulate this example anal
 
 ## Some specifics of this pipeline
 
-- This is a basic pipeline that can be extented to more complicated scenarios. **This basic pipeline only allows the comparison of TWO groups**! I.e. it compares the microbiome samples of one group to the samples of another group. It can be extended to more groups by loops, see: *example in progress*.
+- This is a basic pipeline that can be extented to more complicated scenarios. **This basic pipeline currently only allows the comparison of TWO groups**!
 - The two groups must be defined in a group variable (*group_var*) in the sample_data of the phyloseq object. NB: The *group_var* may contain more groups, but you have to define the two groups you want to compare with *group_var_levels*.
 - The colors representing the two groups are defined by the user in *color_levels*.
 - another variable can be used as *shape* in some plots, but it does not affect statistical tests of the two groups.
-- the user further defines the *taxonomic_level* at which the analysis will be performed. The phyloseq object will be adjusted to the chosen level with the phyloseq::taxglom command.
+- the user further defines the *taxonomic_level* at which the analysis will be performed. The phyloseq object will be adjusted to the chosen level with the phyloseq::tax_glom command (**currently using NArm = FALSE**).
 - **Describe the filtering inputs:** *prevalence*, *min_obs*, *taxa_sums_quantile*. Where is filtering used??
 
 
 
 
 
-## Load packages (and color schemes)
+## Load packages
 
 <!-- Load required packages -->
 
@@ -229,7 +228,7 @@ if (!is.null(taxonomic_level) && !(taxonomic_level %in% colnames(tax_table(ps)))
 
 # - Filtering inputs -
 # NB: user input
-prevalence <- 10 # in percent, for prevalence filtering of taxa 
+prevalence <- 5 # in percent, for prevalence filtering of taxa 
 # NB: user input
 min_obs <- 0L # in counts, a taxon will be considered present (for prevalence) if count > min_obs
 # NB: user input

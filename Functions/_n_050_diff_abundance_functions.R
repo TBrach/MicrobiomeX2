@@ -661,7 +661,7 @@ plot_hittaxa_boxAndviolin <- function(physeq, group_var, color_levels, taxa_info
                 stop("group_var must be a variable in sample_data(physeq)")
         }
         
-        if (is.null(shape) || !shape %in% colnames(sample_data(physeq))) {
+        if (!is.null(shape) && !shape %in% colnames(sample_data(physeq))) {
                 shape = NULL
         }
         # --
