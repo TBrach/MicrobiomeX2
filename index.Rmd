@@ -228,6 +228,8 @@ if (!is.null(taxonomic_level) && !(taxonomic_level %in% colnames(tax_table(ps)))
 
 # - Filtering inputs -
 # NB: user input
+prevalence_for_sf <- 60
+# NB: user input
 prevalence <- 5 # in percent, for prevalence filtering of taxa 
 # NB: user input
 min_obs <- 0L # in counts, a taxon will be considered present (for prevalence) if count > min_obs

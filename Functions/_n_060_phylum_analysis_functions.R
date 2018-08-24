@@ -469,7 +469,7 @@ create_raw_TbT_TilePlot <- function(TbTmatrixes, physeq, group_var, color_levels
         # -- add a tile plot of the pValMatrix --
         
         DF <- as.data.frame(pValMatrix)
-        DF[is.na(DF)] <- 2 # just to avoid missing values in plot and have a clear non-pValue value to mark self comparisons as black
+        DF[is.na(DF)] <- 2 # just to avoid missing values in plot and have a clear non-pValue value to mark self comparisons and impossible comparisons as black
         DF$HostTaxon <- rownames(pValMatrix)
         DF <- tidyr::gather(DF, key = Taxon , value = pValue, - HostTaxon)
         if (is.null(tax_order)) {
@@ -484,12 +484,12 @@ create_raw_TbT_TilePlot <- function(TbTmatrixes, physeq, group_var, color_levels
                 
         }
         
-        fill_colors <- c(color_levels, ns = "gray98", " " = "black")
+        fill_colors <- c(color_levels, ns = "gray98", "test not possible" = "black")
         
         DF$Fill <- "ns"
         DF$Fill[DF$pValue < signi_level & DF$pValue > 0] <- i
         DF$Fill[DF$pValue > -1*signi_level & DF$pValue < 0] <- j
-        DF$Fill[DF$pValue == 2] <- " "
+        DF$Fill[DF$pValue == 2] <- "test not possible"
         DF$Fill <- factor(DF$Fill, levels = names(fill_colors), ordered = T)
         TileTr <- ggplot(DF, aes(x = Taxon, y = HostTaxon, fill = Fill))
         TileTr <- TileTr + 

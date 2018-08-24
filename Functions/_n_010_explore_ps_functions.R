@@ -37,6 +37,29 @@ calc_SFs <- function(physeq, zeros.count = FALSE, percentile = 50)  {
 
 
 
+# --
+#######################################
+### calc_SFs_DESeq
+#######################################
+
+
+calc_SFs_DESeq <- function(physeq, group_var, type = "poscounts"){
+        
+        sample_data(physeq)[[group_var]] <- factor(sample_data(physeq)[[group_var]], ordered = FALSE)
+        
+        DES = phyloseq::phyloseq_to_deseq2(physeq, formula(paste("~", group_var)))
+        
+        dds <- estimateSizeFactors(DES, type = type)
+        
+        sizeFactors(dds)
+        
+        
+}
+
+# --
+
+
+
 
 
 # --
@@ -146,7 +169,7 @@ check_phyla_distribution <- function(physeq) {
                                               PC_of_prevalence = round(100*sum(prevalence)/sum(otu_table(physeq) != 0), 1),
                                               mean_taxa_sum = round(mean(total_counts)),
                                               median_taxa_sum = round(median(total_counts)),
-                                              mean_prevalence_in_PC = round(100*mean(prevalence)/nsamples(ps), 1)) %>% 
+                                              mean_prevalence_in_PC = round(100*mean(prevalence)/nsamples(physeq), 1)) %>% 
                 arrange(desc(PC_of_counts), desc(taxa), desc(PC_of_prevalence))
         
         PhylaDistribution
@@ -194,7 +217,7 @@ check_phyla_distribution_NA <- function(physeq) {
                                               PC_of_prevalence = round(100*sum(prevalence)/sum(otu_table(physeq) != 0), 1),
                                               mean_taxa_sum = round(mean(total_counts)),
                                               median_taxa_sum = round(median(total_counts)),
-                                              mean_prevalence_in_PC = round(100*mean(prevalence)/nsamples(ps), 1)) %>% 
+                                              mean_prevalence_in_PC = round(100*mean(prevalence)/nsamples(physeq), 1)) %>% 
                 arrange(desc(PC_of_counts), desc(taxa), desc(PC_of_prevalence))
         
         PhylaDistribution
@@ -793,6 +816,47 @@ plot_ab_pev_distributions <- function(physeq, prevalence = 5) {
         
         TrList
         
+}
+# --
+
+
+
+
+
+# --
+#######################################
+### calc_SFs
+#######################################
+# implementation of DESeq2 library size similar to estimateSizeFactorsForMatrix
+# in difference to adjust_LS (obsolete) ignore.zero.ratios is always TRUE (so 0 ratios are always ignored)
+
+
+calc_SFs_prev <- function(physeq, zeros.count = FALSE, percentile = 50)  {
+        
+        # ---- Step 1: Calculate Geometric mean for each taxa over all samples ------
+        # NB: these GM is basically the reference sample
+        if(taxa_are_rows(physeq)){
+                GM <- apply(otu_table(physeq), 1, gm_own, zeros.count = zeros.count)   
+        } else {
+                GM <- apply(otu_table(physeq), 2, gm_own, zeros.count = zeros.count) 
+        }
+        
+        # ---- Step 2: Calculate Size factors --------
+        
+        # NB: x/y = exp(log(x) - log(y))
+        
+        if (taxa_are_rows(physeq)) {
+                SFs <- apply(as(otu_table(physeq), "matrix"), 2, function(sample_cnts){exp(quantile((log(sample_cnts)-log(GM))[sample_cnts > 0], probs = percentile/100, na.rm = T))})
+                SFs <- SFs/exp(mean(log(SFs)))
+        } else {
+                SFs <- apply(as(otu_table(physeq), "matrix"), 1, function(sample_cnts){exp(quantile((log(sample_cnts)-log(GM))[sample_cnts > 0], probs = percentile/100, na.rm = T))})
+                SFs <- SFs/exp(mean(log(SFs)))
+        } 
+        
+        
+        if(min(SFs) == 0) { warning("in at least one sample the Size Factor was 0!") }
+        
+        SFs
 }
 # --
 

@@ -9,7 +9,7 @@
 **NB: all samples are considered, i.e. also samples that are not part of group_var_levels, i.e. taxa could remain that are only present in samples not covered by group_var_levels. If you do not want this, you have to upload a phyloseq that only contains samples covered by group_var_levels.**
 
 ```{r, echo = FALSE, message=FALSE}
-# - remove taxa with Phylum == NA -
+# - remove taxa not present in a single sample -
 ps <- phyloseq::subset_taxa(ps, taxa_sums(ps) != 0) 
 # --
 taxa_before <- ntaxa(ps)
@@ -45,8 +45,11 @@ if (phylum_NA_removal == "yes"){
 - *NB2: The size factors for the subsequent total count adjustment (a la DESeq2) are calculated here based on all taxa in the phyloseq object, i.e. independent of the chosen taxonomic_level they are calculated at ASV level. This is because I think that size factors are less reliable when calculated on less taxa, since they are based on a median ratio calculation. One might argue that species level could be best or even genus level, if you think so change the code here.* 
 
 ```{r, echo = FALSE, message=FALSE}
-# - caluclation of Size Factors -
-SFs <- calc_SFs(physeq = ps)
+# - calculation of Size Factors using type = "ratio" and gm_own excluding zeros but only on taxa with given prevalence  -
+ps_sf_filt <- phyloseq::filter_taxa(ps, function(x){(sum(x > min_obs) > (prevalence_for_sf/100)*length(x))}, prune = TRUE)
+
+
+SFs <- calc_SFs(physeq = ps_sf_filt)
 # --
 ```
 
@@ -108,8 +111,13 @@ knitr::kable(Phyla, caption = "Phyla Distribution")
 
 
 ```{r, warning = FALSE, message = FALSE, echo = FALSE}
-# - Define here phylum colors for later plots based on the phyla distribution
-phylum_colors <- make_color_vector(as.character(PhylaForColor$Phylum), QuantColors15)
+# - Define here phylum colors for later plots based on the phyla distribution -
+if (nrow(PhylaForColor) < 16) {
+        phylum_colors <- make_color_vector(as.character(PhylaForColor$Phylum), QuantColors15)
+} else {
+        phylum_colors <- make_color_vector(as.character(PhylaForColor$Phylum), c(QuantColors15, viridis(nrow(PhylaForColor)-15)))
+}
+# --
 ```
 
 
