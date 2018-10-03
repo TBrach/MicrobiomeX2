@@ -149,6 +149,47 @@ get_taxon_names <- function(df) {
 
 # --
 #######################################
+### FUNCTION: get_taxon_names_plusTL
+#######################################
+
+
+get_taxon_names_plusTL <- function(df) {
+        
+        df1 <- df[, colnames(df) %in% c("Kingdom", "Phylum", "Class", "Order", "Family", 
+                                        "Genus", "Species")]
+        
+        if (ncol(df1) == 0) {stop("the provided data frame did not contain the expected taxonomy columns such as Phylum, Class etc.")}
+        
+        df1[] <- lapply(df1, as.character)
+        
+        Last_NotNA_Position <- apply(df1, 1, function(x){length(which(!is.na(x)))})
+        Last_NotNA_Position[Last_NotNA_Position == 0] <- 1
+        
+        Names <- vector(mode = "character", length = nrow(df1))
+        
+        Prefixes <- c("k", "p", "c", "o", "f", "g", "s")
+        
+        for (i in 1:nrow(df1)) {
+                if (Last_NotNA_Position[i] == 7){
+                        Names[i] <- paste0("gs_", df1[i, "Genus"], " ", df1[i, "Species"])
+                } else {
+                        Names[i] <- paste0(Prefixes[Last_NotNA_Position[i]], "_", df1[i, Last_NotNA_Position[i]])
+                }
+        }
+        
+        Names[is.na(Names)] <- "NA"
+        Names
+        
+}
+# --
+
+
+
+
+
+
+# --
+#######################################
 ### FUNCTION: format_hit_table
 #######################################
 
@@ -178,7 +219,7 @@ format_hit_table <- function (result_df, p.adjust.threshold = 0.1, p.adjust.meth
         
         df <- result_df[1:keepTaxa,]
         
-        taxa_annotation <- get_taxon_names(df)
+        taxa_annotation <- get_taxon_names_plusTL(df)
         taxa_annotation <- strsplit(taxa_annotation, split = "/")
         taxa_annotation <- sapply(taxa_annotation, `[`, 1)
         df$Annotation <- taxa_annotation
@@ -427,67 +468,120 @@ plot_heatmap_physeq <- function (physeq, sample_colors = NULL, taxa_info_df = NU
         }
         # ----
         
+        # -- added this even though it might be confusing to the user, but otherwise you get an error --
+        if (max_abundance_for_color < min_in_data) {
+                max_abundance_for_color <- min_in_data # NB: in this case all non-zero values should become maximal color
+        }
+        # -----
+        
+        
         # you want that the final color gradient covers the values min to max_abundance_for_color
         # 0 values will be set to a different color (usually red or white), values above max_abundance_for_color should be all max_color
         # normalise gradient steps with max_abundance_for_color
         myBreaks <- gradient_steps * max_abundance_for_color
-        myBreaks <- myBreaks[myBreaks > min_in_data]
+        myBreaks <- myBreaks[myBreaks >= min_in_data]
         # add break at min_in_data
-        myBreaks <- c(min_in_data, myBreaks)
+        if (length(myBreaks) != 1 || myBreaks != max_abundance_for_color){ # in case max_abundance_for_color == min_in_data
+                myBreaks <- c(min_in_data, myBreaks)
+        }
         
-        # now myBreaks goes from min_in_data up to max_abundance_for_color (provided the last gradient_steps was 1)
-        myColors = color_function(length(myBreaks)) # see help pheatmap, breaks should be 1 element longer than color, now it is same legnth
-        
-        # myColors contains now the colors that represent the gradient_steps values (= markers).
-        # now we want to introduce breaks between these markers and make linear color gradients between the markers. The number of breaks between the markers is defined
-        # by color_steps_bw_markers
-        
-        myColors <- unlist(lapply(1:(length(myColors)-1), function(i) {
-                colorRampPalette(colors = c(myColors[i], myColors[i+1]))(color_steps_bw_markers)
-        }))
-        
-        
-        # -- do a possible log transform using min_in_data/5 as pseudocounts --
-        if (log_transform) {
-                if (ZeroValue > 0){ # > 0 if pseudocount had been added or simply no zero counts in data, < 0 if data h
-                        pseudocount <- ZeroValue
-                } else if (ZeroValue < 0){
-                        stop("you asked for log_transform but the lowest count in your data is already below 0!")
-                } else {
-                        pseudocount <- min_in_data/2
-                }
-                DF_CT[DF_CT == ZeroValue] <- pseudocount
-                DF_CT <- log10(DF_CT)
+        if (length(myBreaks) > 1){
                 
-                myBreaks <- log10(myBreaks)
-                myBreaks1 <- lapply(1:(length(myBreaks)-1), function(i) {
-                        seq(from = myBreaks[i], to = myBreaks[i + 1], length.out = color_steps_bw_markers + 1)[1:color_steps_bw_markers] # in each step the right side marker is not in
-                })
-                myBreaks <- c(unlist(myBreaks1), myBreaks[length(myBreaks)]) #length(myBreaks) is now length(myBreaks) * color_steps_bw_markers + 1, the markers are at positions 1, 1+color_steps_bw_markers, 1+2*color_steps_bw_markers 
+                # now myBreaks goes from min_in_data up to max_abundance_for_color (provided the last gradient_steps was 1)
+                myColors = color_function(length(myBreaks)) # see help pheatmap, breaks should be 1 element longer than color, now it is same legnth
                 
-                if (log10(max_in_data) > myBreaks[length(myBreaks)]) {
-                        myBreaks <- c(log10(pseudocount), myBreaks, log10(max_in_data))
-                        myColors <- c(zero_color, myColors, myColors[length(myColors)])
+                # myColors contains now the colors that represent the gradient_steps values (= markers).
+                # now we want to introduce breaks between these markers and make linear color gradients between the markers. The number of breaks between the markers is defined
+                # by color_steps_bw_markers
+                
+                myColors <- unlist(lapply(1:(length(myColors)-1), function(i) {
+                        colorRampPalette(colors = c(myColors[i], myColors[i+1]))(color_steps_bw_markers)
+                }))
+                
+                
+                # -- do a possible log transform using min_in_data/5 as pseudocounts --
+                if (log_transform) {
+                        if (ZeroValue > 0){ # > 0 if pseudocount had been added or simply no zero counts in data, < 0 if data h
+                                pseudocount <- ZeroValue
+                        } else if (ZeroValue < 0){
+                                stop("you asked for log_transform but the lowest count in your data is already below 0!")
+                        } else {
+                                pseudocount <- min_in_data/2
+                        }
+                        DF_CT[DF_CT == ZeroValue] <- pseudocount
+                        DF_CT <- log10(DF_CT)
+                        
+                        myBreaks <- log10(myBreaks)
+                        myBreaks1 <- lapply(1:(length(myBreaks)-1), function(i) {
+                                seq(from = myBreaks[i], to = myBreaks[i + 1], length.out = color_steps_bw_markers + 1)[1:color_steps_bw_markers] # in each step the right side marker is not in
+                        })
+                        myBreaks <- c(unlist(myBreaks1), myBreaks[length(myBreaks)]) #length(myBreaks) is now length(myBreaks) * color_steps_bw_markers + 1, the markers are at positions 1, 1+color_steps_bw_markers, 1+2*color_steps_bw_markers 
+                        
+                        if (log10(max_in_data) > myBreaks[length(myBreaks)]) {
+                                myBreaks <- c(log10(pseudocount), myBreaks, log10(max_in_data))
+                                myColors <- c(zero_color, myColors, myColors[length(myColors)])
+                        } else {
+                                myBreaks <- c(log10(pseudocount), myBreaks)
+                                myColors <- c(zero_color, myColors)
+                        }
+                        
                 } else {
-                        myBreaks <- c(log10(pseudocount), myBreaks)
-                        myColors <- c(zero_color, myColors)
+                        myBreaks1 <- lapply(1:(length(myBreaks)-1), function(i) {
+                                seq(from = myBreaks[i], to = myBreaks[i + 1], length.out = color_steps_bw_markers + 1)[1:color_steps_bw_markers] # in each step the right side marker is not in
+                        })
+                        myBreaks <- c(unlist(myBreaks1), myBreaks[length(myBreaks)])
+                        
+                        # add max_in_data values to myBreaks, otherwise all values above max_abundance_for_color will be white
+                        if (max_in_data > myBreaks[length(myBreaks)]) {
+                                myBreaks <- c(ZeroValue, myBreaks, max_in_data)
+                                myColors <- c(zero_color, myColors, myColors[length(myColors)])
+                        } else {
+                                myBreaks <- c(ZeroValue, myBreaks)
+                                myColors <- c(zero_color, myColors)
+                        }
                 }
                 
         } else {
-                myBreaks1 <- lapply(1:(length(myBreaks)-1), function(i) {
-                        seq(from = myBreaks[i], to = myBreaks[i + 1], length.out = color_steps_bw_markers + 1)[1:color_steps_bw_markers] # in each step the right side marker is not in
-                })
-                myBreaks <- c(unlist(myBreaks1), myBreaks[length(myBreaks)])
                 
-                # add max_in_data values to myBreaks, otherwise all values above max_abundance_for_color will be white
-                if (max_in_data > myBreaks[length(myBreaks)]) {
-                        myBreaks <- c(ZeroValue, myBreaks, max_in_data)
-                        myColors <- c(zero_color, myColors, myColors[length(myColors)])
+                myColors = color_function(2)
+                myColors <- myColors[2]
+                
+                if (log_transform) {
+                        if (ZeroValue > 0){ # > 0 if pseudocount had been added or simply no zero counts in data, < 0 if data h
+                                pseudocount <- ZeroValue
+                        } else if (ZeroValue < 0){
+                                stop("you asked for log_transform but the lowest count in your data is already below 0!")
+                        } else {
+                                pseudocount <- min_in_data/2
+                        }
+                        DF_CT[DF_CT == ZeroValue] <- pseudocount
+                        DF_CT <- log10(DF_CT)
+                        
+                        myBreaks <- log10(myBreaks)
+                        
+                        
+                        if (log10(max_in_data) > myBreaks[length(myBreaks)]) {
+                                myBreaks <- c(log10(pseudocount), myBreaks, log10(max_in_data))
+                                myColors <- c(zero_color, myColors, myColors[length(myColors)])
+                        } else {
+                                myBreaks <- c(log10(pseudocount), myBreaks)
+                                myColors <- c(zero_color, myColors)
+                        }
                 } else {
-                        myBreaks <- c(ZeroValue, myBreaks)
-                        myColors <- c(zero_color, myColors)
+                        
+                        if (max_in_data > myBreaks[length(myBreaks)]) {
+                                myBreaks <- c(ZeroValue, myBreaks, max_in_data)
+                                myColors <- c(zero_color, myColors, myColors[length(myColors)])
+                        } else {
+                                myBreaks <- c(ZeroValue, myBreaks)
+                                myColors <- c(zero_color, myColors)
+                        }
+                        
                 }
+                
         }
+        
+        
         # ----
         # --
         

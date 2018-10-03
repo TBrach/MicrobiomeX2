@@ -82,10 +82,12 @@ simply_adjust_LS <- function(physeq, SFs = NULL, zeros.count = FALSE, percentile
         
         # ---- Step 1: Calculate Geometric mean for each taxa over all samples ------
         # NB: these GM is basically the reference sample
-        if(taxa_are_rows(physeq)){
-                GM <- apply(otu_table(physeq), 1, gm_own, zeros.count = zeros.count)   
-        } else {
-                GM <- apply(otu_table(physeq), 2, gm_own, zeros.count = zeros.count) 
+        if (is.null(SFs)){
+                if(taxa_are_rows(physeq)){
+                        GM <- apply(otu_table(physeq), 1, gm_own, zeros.count = zeros.count)   
+                } else {
+                        GM <- apply(otu_table(physeq), 2, gm_own, zeros.count = zeros.count) 
+                }
         }
         
         # ---- Step 2: Calculate Size factors  unless given --------
@@ -329,7 +331,7 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
                 theme_bw() +
                 scale_fill_manual(values = fill_colors, na.value = "red") +
                 xlab("") +
-                facet_wrap(~ Typer, ncol = 1) +
+                facet_wrap(~ Typer, ncol = 1, scales = "free_y") +
                 theme(axis.text.x = element_text(angle = 90, hjust = 0, vjust = 0, colour = colxaxis))
         
         Tr
@@ -836,7 +838,7 @@ plot_ab_pev_distributions <- function(physeq, prevalence = 5) {
         Tr3 <- Tr3 + 
                 geom_hline(yintercept = PCKeptAtPCValue, lty =  "dashed") +
                 geom_vline(xintercept = (prevalence/100)*dim(seqtab)[1], lty = 'dashed') +
-                ggtitle(paste("prevalence ", prevalence, " % = ", round((prevalence/100)*dim(seqtab)[1],1), "; ", round(CountDistribution$CumSumTotal[index]), " of ", round(CountDistribution$CumSumTotal[1]), 
+                ggtitle(paste("prevalence ", prevalence, " % = ", round((prevalence/100)*dim(seqtab)[1],1), "; ", CountDistribution$CumSumTotal[index], " of ", CountDistribution$CumSumTotal[1], 
                               " counts (", round(100*CountDistribution$CumSumTotal[index]/CountDistribution$CumSumTotal[1], 1), " %) would remain", sep = ""))
         
         
