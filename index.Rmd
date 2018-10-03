@@ -134,6 +134,7 @@ source(file.path(functionpath, "_n_060_phylum_analysis_functions.R"))
 # NB: USER INPUTPS
 name_phyloseq_rds <- "physeq_microdiab_ngt_Men.rds"
 
+
 # NB: USER INPUT
 datapath <- "./Example_phyloseq_objects"
 
@@ -144,7 +145,11 @@ if(! file.exists(file.path(datapath, name_phyloseq_rds))){
 
 ps <- readRDS(file.path(datapath, name_phyloseq_rds))
 
-
+# -- in case you want to change taxa names
+# taxa_names(ps) <- paste0("Taxon_", sprintf('%0.4d', 1:ntaxa(ps)))
+# saveRDS(ps, file = file.path(datapath, name_phyloseq_rds))
+# ----
+# --
 
 
 # - Define the group variable for sample comparisons -

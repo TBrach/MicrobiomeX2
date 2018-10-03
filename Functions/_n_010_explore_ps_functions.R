@@ -160,7 +160,7 @@ check_phyla_distribution <- function(physeq) {
                                  prevalence = colSums(as(otu_table(physeq), "matrix") != 0))
         
         
-        df_ab_prev <- cbind(df_ab_prev, tax_table(physeq))
+        df_ab_prev <- cbind(df_ab_prev, as.data.frame(unclass(tax_table(physeq))))
         
         PhylaDistribution <- dplyr::summarise(group_by(df_ab_prev, Phylum), 
                                               taxa = n(), 
@@ -206,7 +206,7 @@ check_phyla_distribution_NA <- function(physeq) {
                                  prevalence = colSums(as(otu_table(physeq), "matrix") != 0))
         
         
-        df_ab_prev <- cbind(df_ab_prev, tax_table(physeq))
+        df_ab_prev <- cbind(df_ab_prev, as.data.frame(unclass(tax_table(physeq))))
         df_ab_prev$Phylum <- as.character(df_ab_prev$Phylum)
         df_ab_prev$Phylum[is.na(df_ab_prev$Phylum)] <- paste(df_ab_prev$Kingdom[is.na(df_ab_prev$Phylum)], "_NA", sep = "")
         
@@ -419,7 +419,7 @@ plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, test =
 
 get_assignemnt_distribution <- function(physeq){
         
-        taxa <- tax_table(physeq)
+        taxa <- as.data.frame(unclass(tax_table(physeq)))
         
         countNA <- apply(taxa, 2, function(x){sum(is.na(x))})
         countNonNA <- apply(taxa, 2, function(x){sum(!is.na(x))})
@@ -430,6 +430,34 @@ get_assignemnt_distribution <- function(physeq){
                                               total = total,
                                               PC_assigned = round(100*countNonNA/total, 1))
                                               # PC_assigned_unamb = round(100*(countNonNA - ambiguous)/total, 1))
+        
+}
+# --
+
+
+
+# --
+#######################################
+### FUNCTION: get_assignemnt_distribution_from_taxa
+#######################################
+## INPUT:
+# physeq
+## OUTPUT:
+# df: illustrating the percentage of taxa that have been assigned to the different taxonomic levels. Non assigned levels must be NA
+
+get_assignemnt_distribution_from_taxa <- function(taxa){
+        
+        # taxa <- as.data.frame(unclass(tax_table(physeq)))
+        
+        countNA <- apply(taxa, 2, function(x){sum(is.na(x))})
+        countNonNA <- apply(taxa, 2, function(x){sum(!is.na(x))})
+        # ambiguous <- apply(taxa, 2, function(x){sum(grepl("/", x))})
+        total <- countNA + countNonNA
+        assignment_distribution <- data.frame(assigned = countNonNA, 
+                                              # assigned_unamb = countNonNA - ambiguous,
+                                              total = total,
+                                              PC_assigned = round(100*countNonNA/total, 1))
+        # PC_assigned_unamb = round(100*(countNonNA - ambiguous)/total, 1))
         
 }
 # --
@@ -450,7 +478,7 @@ check_assignment_vs_abundance <- function(physeq, abundanceQuantiles = seq(0, 90
                 physeq <- t(physeq)
         }
         
-        taxa = tax_table(physeq) 
+        taxa = as.data.frame(unclass(tax_table(physeq))) 
         seqtab = as(otu_table(physeq), "matrix")
         
         
@@ -464,7 +492,7 @@ check_assignment_vs_abundance <- function(physeq, abundanceQuantiles = seq(0, 90
                 taxa[indexes,]
         })
         
-        assignment_distributions <- lapply(filtered.taxas, get_assignemnt_distribution)
+        assignment_distributions <- lapply(filtered.taxas, get_assignemnt_distribution_from_taxa)
         
         PC_assigned <- sapply(assignment_distributions, function(distri){distri[["PC_assigned"]]})
         
@@ -508,7 +536,7 @@ check_assignment_vs_prevalence <- function(physeq, prevalences = seq(0, 90, by =
                 physeq <- t(physeq)
         }
         
-        taxa = tax_table(physeq) 
+        taxa = as.data.frame(unclass(tax_table(physeq))) 
         seqtab = as(otu_table(physeq), "matrix")
         
         prev <- colSums(seqtab != 0)
@@ -520,7 +548,7 @@ check_assignment_vs_prevalence <- function(physeq, prevalences = seq(0, 90, by =
                 taxa[indexes,]
         })
         
-        assignment_distributions <- lapply(filtered.taxas, get_assignemnt_distribution)
+        assignment_distributions <- lapply(filtered.taxas, get_assignemnt_distribution_from_taxa)
         
         PC_assigned <- sapply(assignment_distributions, function(distri){distri[["PC_assigned"]]})
         
@@ -576,7 +604,7 @@ plot_correlations_abundance_prev_sparsity <- function(physeq, col = NULL, col_ve
                                  )
         
         
-        df_ab_prev <- cbind(df_ab_prev, tax_table(physeq))
+        df_ab_prev <- cbind(df_ab_prev, as.data.frame(unclass(tax_table(physeq))))
         
         nsamples <- nsamples(physeq)
         
@@ -808,7 +836,7 @@ plot_ab_pev_distributions <- function(physeq, prevalence = 5) {
         Tr3 <- Tr3 + 
                 geom_hline(yintercept = PCKeptAtPCValue, lty =  "dashed") +
                 geom_vline(xintercept = (prevalence/100)*dim(seqtab)[1], lty = 'dashed') +
-                ggtitle(paste("prevalence ", prevalence, " % = ", round((prevalence/100)*dim(seqtab)[1],1), "; ", CountDistribution$CumSumTotal[index], " of ", CountDistribution$CumSumTotal[1], 
+                ggtitle(paste("prevalence ", prevalence, " % = ", round((prevalence/100)*dim(seqtab)[1],1), "; ", round(CountDistribution$CumSumTotal[index]), " of ", round(CountDistribution$CumSumTotal[1]), 
                               " counts (", round(100*CountDistribution$CumSumTotal[index]/CountDistribution$CumSumTotal[1], 1), " %) would remain", sep = ""))
         
         

@@ -64,7 +64,6 @@ p <- plot_heatmap_physeq(physeq_to_test, sample_colors = sample_colors, taxa_inf
                     annotation_names_col = FALSE, annotation_legend = TRUE, legend = TRUE, font_size = 14, 
                     fontsize_row = 12, fontsize_col = 12, fontsize_number = 12)
 
-
 # pdf(file = "heatmapprev.pdf", width = 9, height = 6)
 # grid::grid.newpage()
 # grid::grid.draw(p$gtable)

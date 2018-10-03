@@ -49,7 +49,7 @@ if (phylum_NA_removal == "yes"){
 ps_sf_filt <- phyloseq::filter_taxa(ps, function(x){(sum(x > min_obs) > (prevalence_for_sf/100)*length(x))}, prune = TRUE)
 
 
-SFs <- calc_SFs(physeq = ps_sf_filt)
+SFs <- calc_SFs(physeq = ps_sf_filt, zeros.count = FALSE, percentile = 50)
 # --
 ```
 

@@ -41,7 +41,7 @@ bar_plot_ps_ra
 physeq_to_test <- ps
 # --
 
-taxa_annotation <- get_taxon_names(as.data.frame(tax_table(ps))[,2:7])
+taxa_annotation <- get_taxon_names(as.data.frame(unclass(tax_table(physeq_to_test)[,2:7])))
 taxa_annotation <- make.unique(taxa_annotation)
 taxa_order <- c(names(phylum_colors), taxa_annotation[!taxa_annotation %in% names(phylum_colors)])
 
@@ -93,7 +93,7 @@ physeq_to_test <- ps
 # NB: calculates Matrixes including all samples in physeq (alternative use calculate_raw_TbTmatrixesSingle)
 raw_TbTmatrixes <- calculate_raw_TbTmatrixes(physeq = physeq_to_test)
 # raw_TbTmatrixes <- lapply(raw_TbTmatrixes, log10)
-taxa_annotation <- get_taxon_names(as.data.frame(tax_table(ps))[,2:7])
+taxa_annotation <- get_taxon_names(as.data.frame(unclass(tax_table(physeq_to_test)[,2:7])))
 taxa_annotation <- make.unique(taxa_annotation)
 taxa_order <- c(names(phylum_colors), taxa_annotation[!taxa_annotation %in% names(phylum_colors)])
 # --

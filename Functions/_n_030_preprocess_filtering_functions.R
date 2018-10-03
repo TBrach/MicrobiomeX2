@@ -18,7 +18,7 @@ visualize_filtering <- function(physeq, prevalence, taxa_sums_quantile, phylum_c
                                  median_count_nonzero = apply(as(otu_table(physeq), "matrix"), 2, function(x){median(x[x > 0])})
         )
         
-        df_ab_prev <- cbind(df_ab_prev, tax_table(physeq))
+        df_ab_prev <- cbind(df_ab_prev, as.data.frame(unclass(tax_table(physeq))))
         
         # - adjust color and order of the phyla in the following plots - 
         colori <- "Phylum"
