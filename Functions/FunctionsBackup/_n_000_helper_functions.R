@@ -286,36 +286,3 @@ calc_no_molecules_in_volume <- function(conc, vol = "1 pL"){# you need to give b
 }
 # --
 
-
-
-
-
-# - -
-#######################################
-### trim_whitespace
-#######################################
-# from https://stackoverflow.com/questions/2261079/how-to-trim-leading-and-trailing-whitespace
-trim_whitespace <- function (x) gsub("^\\s+|\\s+$", "", x)
-# --
-
-
-
-
-# --
-#######################################
-### filter_dist_obj
-#######################################
-
-
-filter_dist_obj <- function(dist_obj, keepNames){
-        
-        dist_obj_mat <- as.matrix(dist_obj)
-        dist_obj_mat <- dist_obj_mat[rownames(dist_obj_mat) %in% keepNames, colnames(dist_obj_mat) %in% keepNames]
-        dist_obj <- as.dist(dist_obj_mat)
-        dist_obj
-        
-}
-# --
-
-
-

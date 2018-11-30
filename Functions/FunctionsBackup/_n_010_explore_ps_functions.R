@@ -390,7 +390,7 @@ plot_sample_bars_compare <- function(physeq, physeq2, x = "Sample", y = "Abundan
 
 plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, Ref = NULL, test = "t.test", p_adjust_method = "fdr",
                              symnum.args = list(cutpoints = c(0, 1e-04, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns")),
-                             hide.ns = FALSE, label.y = NULL, label.x = NULL){
+                             hide.ns = FALSE){
         
         
         if (is.null(group_var)){
@@ -436,7 +436,7 @@ plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, Ref = 
                         
                         comparisonList <- get_unique_facLevel_combinations(fac_levels)
                         
-                        Tr <- Tr + ggpubr::stat_compare_means(comparisons = comparisonList, label = "p.signif", method = test, hide.ns = hide.ns, symnum.args = symnum.args, label.x = label.x, label.y = label.y)
+                        Tr <- Tr + ggpubr::stat_compare_means(comparisons = comparisonList, label = "p.signif", method = test, hide.ns = hide.ns)
                         
                         formulaa <- as.formula(paste("SF ~", group_var, sep = " "))
                         
@@ -446,7 +446,7 @@ plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, Ref = 
                         
                 } else {
                         
-                        Tr <- Tr + ggpubr::stat_compare_means(ref.group = Ref, label = "p.signif", method = test, hide.ns = hide.ns, symnum.args = symnum.args, label.x = label.x, label.y = label.y)
+                        Tr <- Tr + ggpubr::stat_compare_means(ref.group = Ref, label = "p.signif", method = test, hide.ns = hide.ns)
                         
                         formulaa <- as.formula(paste("SF ~", group_var, sep = " "))
                         
@@ -499,7 +499,7 @@ plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, Ref = 
                         
                         comparisonList <- get_unique_facLevel_combinations(fac_levels)
                         
-                        Tr2 <- Tr2 + ggpubr::stat_compare_means(comparisons = comparisonList, label = "p.signif", method = test, hide.ns = hide.ns, symnum.args = symnum.args, label.x = label.x, label.y = label.y)
+                        Tr2 <- Tr2 + ggpubr::stat_compare_means(comparisons = comparisonList, label = "p.signif", method = test, hide.ns = hide.ns)
                         
                         formulaa <- as.formula(paste("total_count ~", group_var, sep = " "))
                         
@@ -509,7 +509,7 @@ plot_sizeFactors <- function(physeq, SFs, group_var, color_levels, shape, Ref = 
                         
                 } else {
                         
-                        Tr2 <- Tr2 + ggpubr::stat_compare_means(ref.group = Ref, label = "p.signif", method = test, hide.ns = hide.ns, symnum.args = symnum.args, label.x = label.x, label.y = label.y)
+                        Tr2 <- Tr2 + ggpubr::stat_compare_means(ref.group = Ref, label = "p.signif", method = test, hide.ns = hide.ns)
                         
                         formulaa <- as.formula(paste("total_count ~", group_var, sep = " "))
                         
@@ -1009,111 +1009,6 @@ calc_SFs_prev <- function(physeq, zeros.count = FALSE, percentile = 50)  {
         SFs
 }
 # --
-
-
-
-
-
-# --
-#######################################
-### illustrate_ASV_Overlap
-#######################################
-
-
-illustrate_ASV_Overlap <- function(seqtab1, seqtab2, color_levels){
-        
-        Overlap <- sum(colnames(seqtab2) %in% colnames(seqtab1))
-        Seqtab1_specific <- sum(!colnames(seqtab1) %in% colnames(seqtab2))
-        Seqtab2_specific <- sum(!colnames(seqtab2) %in% colnames(seqtab1))
-        
-        DF <- data.frame(Seqtab = c(rep("Seqtab1",2), rep("Seqtab2", 2), rep("Merged", 3)), From = c("Seqtab1_specific", "Overlap", "Seqtab2_specific", "Overlap",
-                                                                                                     "Seqtab1_specific", "Seqtab2_specific", "Overlap"),
-                         No_ASV = c(Seqtab1_specific, Overlap, Seqtab2_specific, Overlap, Seqtab1_specific, Seqtab2_specific,  Overlap))
-        
-        DF$Seqtab <- factor(DF$Seqtab, levels = c("Seqtab1", "Seqtab2", "Merged"), ordered = T)
-        DF$From <- factor(DF$From, levels = c("Seqtab2_specific", "Seqtab1_specific", "Overlap"), ordered = T)
-        
-        Tr <- ggplot(DF, aes(x = Seqtab, y = No_ASV, fill = From))
-        
-        Tr <- Tr +
-                geom_bar(stat = "identity", width = 0.7) +
-                xlab("") +
-                ylab("Number of ASVs") +
-                scale_fill_manual("", values = color_levels) +
-                theme_bw()
-        
-        # - another view showing the same -
-        
-        DF1 <- data.frame(From = c("Seqtab1_specific", "Seqtab2_specific", "Overlap", "Total"), No_ASV = c(Seqtab1_specific, Seqtab2_specific, Overlap, sum(Seqtab1_specific, Seqtab2_specific, Overlap)))
-        DF1$From <- factor(DF1$From, levels = c("Seqtab1_specific", "Seqtab2_specific", "Overlap", "Total"), ordered = TRUE)
-        
-        Tr1 <- ggplot(DF1, aes(x = From, y = No_ASV, fill = From))
-        
-        Tr1 <- Tr1 +
-                geom_bar(stat = "identity", width = 0.7) +
-                xlab("") +
-                ylab("Number of ASVs") +
-                scale_fill_manual("", values = color_levels) +
-                theme_bw() +
-                theme(legend.position = "none",
-                      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-                
-        
-        # --
-        
-        list(Tr, Tr1)
-        
-}
-# --
-
-
-
-
-# --
-#######################################
-### make_long_error_matrix
-#######################################
-
-
-make_long_error_matrix <- function(err_m){
-        levels <- rownames(err_m)
-        err_m <- as.data.frame(err_m)
-        err_m$Step <- rownames(err_m)
-        err_m <- tidyr::gather(data = err_m, key = "Quality", value = "Rate", -Step)
-        err_m$Quality <- as.integer(err_m$Quality)
-        err_m$Step <- factor(err_m$Step, levels = levels, ordered = T)
-        err_m
-}
-# --
-
-
-
-
-# --
-#######################################
-### error_matrix_compare_plot
-#######################################
-
-
-error_matrix_compare_plot <- function(err_DF, color_levels){
-        Tr <- ggplot(err_DF, aes(x = Quality, y = Rate, col = Round))
-        Tr <- Tr +
-                geom_point() +
-                facet_wrap(~ Step, ncol = 4) +
-                scale_y_log10() +
-                geom_smooth(method = "loess", se = FALSE) +
-                scale_color_manual(values = color_levels) +
-                ylab("error rate") +
-                xlab("") +
-                theme_bw()
-        Tr
-        
-}
-# --
-
-
-
-
 
 
 

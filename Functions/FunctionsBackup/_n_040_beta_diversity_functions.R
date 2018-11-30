@@ -331,7 +331,7 @@ loop_vegan_adonis <- function(dist_obj, group_fac, nperm = 999,
 
 
 calc_ordination_from_distances <- function(physeq, group_var, dist_list, color_levels, ordination_type = "PCoA", shape = NULL, coord_cor = FALSE, phylum_colors = NULL,
-                                           ellipses = FALSE, ellipse_level = 0.95, gray_levels = NULL, paired_var = NULL){
+                                           ellipses = FALSE, ellipse_level = 0.95, paired_var = NULL){
         
         
         
@@ -352,12 +352,6 @@ calc_ordination_from_distances <- function(physeq, group_var, dist_list, color_l
         
         keepSamples <- sample_names(physeq)[sample_data(physeq)[[group_var]] %in% names(color_levels)]
         physeq <- prune_samples(keepSamples, physeq)
-        
-        
-        if (!is.null(gray_levels) && !all(gray_levels %in% names(color_levels))) {
-                stop("you wanted to use gray_levels but they have to be a subset of names(color_levels).")
-        }
-        
         
         if (!("dist" %in% class(dist_list[[1]]))){
                 stop("first object of dist_list is not of class dist")
@@ -386,36 +380,25 @@ calc_ordination_from_distances <- function(physeq, group_var, dist_list, color_l
                 DF <- phyloseq::plot_ordination(physeq, ordination_list[[i]], color = group_var, justDF = TRUE)
                 DFList[[i]] <- DF # just the first two axes cbind to sample_data in physeq
                 
-                if (!is.null(gray_levels)){
-                        DF_Group <- dplyr::filter(DF, DF[[group_var]] %in% gray_levels)
-                } else {
-                        DF_Group <- DF
-                }
-                
                 x = colnames(DF)[1]
                 y = colnames(DF)[2]
                 Tr <- ggplot(DF, aes_string(x = x, y = y)) 
                 
                 if (ellipses){
                         Tr <- Tr +
-                                stat_ellipse(data = DF_Group, geom = "polygon", aes_string(fill = group_var), type = "t", alpha = 0.15, level = ellipse_level) +
-                                stat_ellipse(data = DF_Group, aes_string(col = group_var), type = "t", linetype = "dashed", level = ellipse_level) +
+                                stat_ellipse(geom = "polygon", aes_string(fill = group_var), type = "t", alpha = 0.15, level = ellipse_level) +
+                                stat_ellipse(aes_string(col = group_var), type = "t", linetype = "dashed", level = ellipse_level) +
                                 scale_fill_manual("", values = color_levels)
                 }
                 
-                if (!identical(DF, DF_Group)){
-                        Tr <- Tr + geom_point(data = DF, col = cbPalette[1], size = 0.5, alpha = 0.5)
-                }
-                
-                
                 Tr <- Tr + 
-                        geom_point(data = DF_Group, aes_string(col = group_var, shape = shape)) + 
+                        geom_point(aes_string(col = group_var, shape = shape)) + 
                         scale_color_manual("", values = color_levels) +
                         theme_bw() +
                         ggtitle(names(dist_list)[i])
                 
                 if (!is.null(paired_var)) {
-                        Tr <- Tr + geom_line(data = DF_Group, aes_string(group = paired_var), col = cbPalette[1])
+                        Tr <- Tr + geom_line(aes_string(group = paired_var), col = cbPalette[1])
                 }
                 
                 # for labelling axes

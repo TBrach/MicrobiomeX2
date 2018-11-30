@@ -228,7 +228,7 @@ boxplots_alphdiv <- function(DF_alpha, measures, group_var, shape, color_levels,
 
 # NB: requires the lmp function!
 
-lmPlots_alphdiv <- function(DF_alpha, lm_fitlist, measures, group_var, shape, color_levels, test = "t.test", alpha = 1){
+lmPlots_alphdiv <- function(DF_alpha, lm_fitlist, measures, group_var, shape, color_levels, test = "t.test"){
         
         if(! group_var %in% colnames(DF_alpha)) {
                 stop("The given group_var is not a variable in DF_alpha.")
@@ -250,7 +250,7 @@ lmPlots_alphdiv <- function(DF_alpha, lm_fitlist, measures, group_var, shape, co
         for (i in 1:length(measures)){
                 aes_map <- aes_string(x = "Total", y = measures[i], color = group_var, shape = shape)
                 Tr <-  ggplot(DF_alpha, aes_map) + 
-                        geom_point(na.rm = TRUE, alpha = alpha) +
+                        geom_point(na.rm = TRUE) +
                         xlab("total counts (sample_sums())") +
                         scale_color_manual("", values = color_levels) +
                         theme_bw()
